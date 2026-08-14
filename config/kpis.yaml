@@ -1,3 +1,62 @@
-# Catálogo de KPIs — se completa en el siguiente paso (Semana 2: Análisis del problema).
-# Cada KPI referenciará su fórmula y la(s) columna(s) fuente una vez definido el catálogo.
-kpis: []
+# Catálogo preliminar de KPIs — Fase 1 / Semana 2 (Análisis del problema)
+# Cada KPI se calculará en la Capa Gold a partir de datos ya limpios en Silver.
+
+kpis:
+  - id: prob_impago
+    nombre: "Probabilidad de impago"
+    definicion: >
+      Probabilidad estimada de que un cliente incumpla sus obligaciones de
+      crédito en los próximos 12 meses.
+    formula: >
+      Salida de un modelo de clasificación (XGBoost/LightGBM) entrenado sobre
+      historial de pagos: P_impago = f(ingresos, historial_crediticio,
+      balance_transaccional) en el rango [0, 1]
+    fuente:
+      dataset: "Loan Default Prediction Dataset (Kaggle)"
+      columnas: [income, credit_history, loan_amount, default]
+    capa: "Gold"
+
+  - id: flujo_efectivo_proyectado
+    nombre: "Flujo de efectivo proyectado"
+    definicion: >
+      Estimación del efectivo disponible del cliente en los próximos 1, 3 y
+      6 meses.
+    formula: >
+      Flujo_proyectado(t) = ingreso_promedio_mensual - gasto_promedio_mensual,
+      ajustado con bandas de confianza del simulador Monte Carlo
+    fuente:
+      dataset: "Credit Card Transactions Fraud Detection Dataset (Kaggle)"
+      columnas: [amt, category, trans_date_trans_time, cc_num]
+    capa: "Gold"
+
+  - id: capacidad_ahorro
+    nombre: "Capacidad de ahorro mensual"
+    definicion: >
+      Proporción del ingreso mensual que el cliente puede destinar a ahorro
+      después de gastos fijos.
+    formula: "Capacidad_ahorro = (ingreso_mensual - gasto_mensual) / ingreso_mensual"
+    fuente:
+      dataset: "Financial Transactions Dataset - Expenses & Income (Kaggle)"
+      columnas: [income, expense, date]
+    capa: "Silver -> Gold"
+
+  - id: ratio_endeudamiento
+    nombre: "Ratio de endeudamiento"
+    definicion: "Proporción de la deuda total del cliente respecto a su ingreso anual."
+    formula: "Ratio_endeudamiento = deuda_total / ingreso_anual"
+    fuente:
+      dataset: "Loan Default Prediction Dataset (Kaggle)"
+      columnas: [loan_amount, income]
+    capa: "Gold"
+
+  - id: tasa_exito_ingesta
+    nombre: "Tasa de éxito y volumen de ingesta"
+    definicion: >
+      Porcentaje de ejecuciones de pipeline exitosas y volumen de registros
+      procesados por corrida. Es un KPI de observabilidad técnica, no de
+      negocio directamente.
+    formula: "Tasa_exito = (corridas_exitosas / corridas_totales) * 100"
+    fuente:
+      dataset: "Logs y metadata de Apache Airflow"
+      columnas: [dag_id, run_id, state, duration]
+    capa: "Observabilidad (transversal)"
