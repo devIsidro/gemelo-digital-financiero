@@ -1,0 +1,27 @@
+name: Lint
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install linters
+        run: pip install flake8 black
+
+      - name: Run flake8
+        run: flake8 src dags tests --max-line-length=100
+
+      - name: Check formatting with black
+        run: black --check src dags tests
