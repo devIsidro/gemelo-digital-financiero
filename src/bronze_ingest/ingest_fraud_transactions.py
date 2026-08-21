@@ -14,7 +14,9 @@ from pathlib import Path
 import pandas as pd
 
 
-def ingest_csv_to_bronze(csv_path: str, bronze_root: str = "data/bronze/transactions") -> int:
+def ingest_csv_to_bronze(
+    csv_path: str, bronze_root: str = "data/bronze/transactions"
+) -> int:
     """Lee el CSV crudo y lo escribe particionado por year/month/day en Bronze.
 
     Devuelve el número de filas escritas.
