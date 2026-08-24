@@ -4,6 +4,7 @@ x-airflow-common-env: &airflow-common-env
   AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:-}
   AIRFLOW__CORE__LOAD_EXAMPLES: "false"
   AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+  PYTHONPATH: /opt/airflow
 
 x-airflow-common-volumes: &airflow-common-volumes
   - ./dags:/opt/airflow/dags

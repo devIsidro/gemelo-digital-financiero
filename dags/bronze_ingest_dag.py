@@ -1,9 +1,7 @@
 """
-DAG de ejemplo — plantilla de arranque para la ingesta hacia la Capa Bronze.
-
-Esto es un ESQUELETO (Fase 1 / Semana 1: repositorio creado), no la implementación
-final de la Fase 2. Reemplaza la función `ingest_source` con la lógica real de
-lectura del dataset elegido y escritura hacia MinIO/Delta Lake.
+DAG de ingesta hacia la Capa Bronze — dataset de transacciones (Credit Card
+Transactions Fraud Detection). Llama a la lógica real en
+src/bronze_ingest/ingest_fraud_transactions.py (Fase 2 / Semana 5-6).
 """
 
 from datetime import datetime, timedelta
@@ -11,18 +9,21 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+from src.bronze_ingest.ingest_fraud_transactions import ingest_csv_to_bronze
+
 default_args = {
     "owner": "jorge",
     "retries": 3,
     "retry_delay": timedelta(minutes=5),
 }
 
+RAW_CSV_PATH = "data/raw/fraudTest.csv"
+
 
 def ingest_source(**context):
-    """Placeholder: aquí va la lectura del dataset crudo y su escritura en Bronze."""
-    # TODO (Fase 2 / Semana 5-6): leer CSV/API fuente, escribir a MinIO en formato
-    # Delta/Parquet, particionado por year/month/day, preservando el dato crudo.
-    print("Ingesta Bronze: pendiente de implementar")
+    """Corre la ingesta real del CSV crudo hacia la Capa Bronze."""
+    rows = ingest_csv_to_bronze(RAW_CSV_PATH)
+    print(f"Ingesta Bronze completa: {rows:,} filas escritas")
 
 
 with DAG(
