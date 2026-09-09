@@ -116,7 +116,9 @@ with col_izq:
 with col_der:
     st.subheader("Volumen de transacciones por día")
     por_dia = (
-        silver_df.groupby(["year", "month", "day"]).size().reset_index(name="transacciones")
+        silver_df.groupby(["year", "month", "day"])
+        .size()
+        .reset_index(name="transacciones")
     )
     por_dia["fecha"] = pd.to_datetime(por_dia[["year", "month", "day"]])
     por_dia = por_dia.sort_values("fecha")

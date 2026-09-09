@@ -41,9 +41,7 @@ def clean_transactions(bronze_df: DataFrame) -> DataFrame:
     df = df.withColumn("amt", F.col("amt").cast("double"))
     df = df.withColumn("is_fraud", F.col("is_fraud").cast("int"))
     df = df.withColumn("city_pop", F.col("city_pop").cast("long"))
-    df = df.withColumn(
-        "trans_date_trans_time", F.to_timestamp("trans_date_trans_time")
-    )
+    df = df.withColumn("trans_date_trans_time", F.to_timestamp("trans_date_trans_time"))
     df = df.withColumn("category", F.trim(F.lower(F.col("category"))))
     df = df.withColumn("merchant", F.trim(F.col("merchant")))
 
@@ -77,9 +75,9 @@ def run_silver_job(
         silver_df = clean_transactions(bronze_df)
         filas_silver = silver_df.count()
 
-        silver_df.write.mode("overwrite").partitionBy(
-            "year", "month", "day"
-        ).parquet(silver_path)
+        silver_df.write.mode("overwrite").partitionBy("year", "month", "day").parquet(
+            silver_path
+        )
 
         return {
             "filas_bronze": filas_bronze,

@@ -22,7 +22,9 @@ class ResultadoExpectativa:
     detalle: str
 
 
-def validar_silver(silver_path: str = "data/silver/transactions") -> list[ResultadoExpectativa]:
+def validar_silver(
+    silver_path: str = "data/silver/transactions",
+) -> list[ResultadoExpectativa]:
     df = pd.read_parquet(silver_path)
     resultados = []
 
@@ -55,7 +57,9 @@ def validar_silver(silver_path: str = "data/silver/transactions") -> list[Result
     invalidos_fraud = (~df["is_fraud"].isin([0, 1])).sum()
     resultados.append(
         ResultadoExpectativa(
-            "is_fraud en {0, 1}", invalidos_fraud == 0, f"{invalidos_fraud} valores fuera de rango"
+            "is_fraud en {0, 1}",
+            invalidos_fraud == 0,
+            f"{invalidos_fraud} valores fuera de rango",
         )
     )
 
