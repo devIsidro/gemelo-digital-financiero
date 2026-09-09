@@ -1,0 +1,71 @@
+digraph FlujoDatos {
+    rankdir=LR;
+    bgcolor="#FFFFFF";
+    fontname="Helvetica";
+    fontsize=20;
+    labelloc="t";
+    label="Diagrama de Flujo de Datos End-to-End (Data Lineage)";
+    fontcolor="#1F3864";
+    nodesep=0.45;
+    ranksep=0.7;
+
+    node [fontname="Helvetica", fontsize=12, shape=box, style="rounded,filled", color="#2E5C8A", fontcolor="#1F3864", fillcolor="#EAF1FB"];
+    edge [fontname="Helvetica", fontsize=10, color="#6B7688", fontcolor="#444444"];
+
+    subgraph cluster_fuentes {
+        label="Fuentes públicas"; style="rounded"; color="#1F3864"; fontcolor="#1F3864"; bgcolor="#FFFFFF";
+        fraud [label="Kaggle:\nCredit Card Transactions\nFraud Detection"];
+        loan [label="Kaggle:\nLoan Default\nPrediction"];
+        finance [label="Kaggle:\nFinancial Transactions\n(Expenses & Income)"];
+        macro [label="World Bank\nOpen Data API"];
+    }
+
+    subgraph cluster_bronze {
+        label="Bronze"; style="rounded"; color="#1F3864"; fontcolor="#1F3864"; bgcolor="#FDF3E7";
+        bronze [label="Ingesta cruda\n(Airflow DAG)\nDelta/Parquet en MinIO\nparticionado year/month/day", fillcolor="#FFFFFF"];
+    }
+
+    subgraph cluster_silver {
+        label="Silver"; style="rounded"; color="#1F3864"; fontcolor="#1F3864"; bgcolor="#EAF6EF";
+        silver [label="Limpieza y normalización\n(PySpark)\nDeduplicación + reglas\nde negocio + Great\nExpectations", fillcolor="#FFFFFF"];
+    }
+
+    subgraph cluster_gold {
+        label="Gold"; style="rounded"; color="#1F3864"; fontcolor="#1F3864"; bgcolor="#EAF1FB";
+        gold [label="KPIs y métricas\n(PostgreSQL / DuckDB)\nvisión 360 del cliente", fillcolor="#FFFFFF"];
+    }
+
+    subgraph cluster_ia {
+        label="Modelos e IA"; style="rounded"; color="#1F3864"; fontcolor="#1F3864"; bgcolor="#FFFFFF";
+        ml [label="Modelo predictivo\nde riesgo\n(XGBoost / LightGBM)"];
+        montecarlo [label="Simulador\nMonte Carlo\n(escenarios futuros)"];
+        rag [label="Asistente IA\n(LangChain + Ollama\n+ Llama 3, RAG)"];
+    }
+
+    subgraph cluster_dash_ejecutivo {
+        label="App: Dashboard Ejecutivo (Streamlit / Power BI) — Entregable #12";
+        style="rounded"; color="#B08900"; fontcolor="#6B5900"; bgcolor="#FFF9E5";
+        panel_portafolio [label="Vista 2 — Panel de portafolio\n(Módulo Histórico)\nmétricas agregadas de\ntodos los clientes", fillcolor="#FFFFFF"];
+        vista_cliente [label="Vista 3 — Gemelo Digital\nFinanciero (Módulo Predictivo)\nperfil 360 de UN cliente\n+ chat con Asistente IA embebido", fillcolor="#FFFFFF"];
+    }
+
+    dash_obs [label="Vista 1 — Panel técnico /\nobservabilidad (Entregable #8)\nequipo de Data Engineering", fillcolor="#EAF1FB"];
+
+    fraud -> bronze;
+    loan -> bronze;
+    finance -> bronze;
+    macro -> bronze;
+
+    bronze -> silver;
+    silver -> gold;
+
+    gold -> ml;
+    gold -> montecarlo;
+    gold -> rag;
+    gold -> panel_portafolio;
+    gold -> vista_cliente;
+    rag -> vista_cliente [label="  chat embebido"];
+
+    bronze -> dash_obs [style=dashed, label="  logs / métricas\n  de ejecución"];
+    silver -> dash_obs [style=dashed];
+}

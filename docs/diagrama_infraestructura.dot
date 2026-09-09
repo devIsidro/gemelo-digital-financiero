@@ -1,0 +1,43 @@
+digraph Infraestructura {
+    rankdir=TB;
+    bgcolor="#FFFFFF";
+    fontname="Helvetica";
+    fontsize=20;
+    labelloc="t";
+    label="Diagrama de Arquitectura de Infraestructura — Docker Compose (entorno local)";
+    fontcolor="#1F3864";
+
+    node [fontname="Helvetica", fontsize=12, shape=box, style="rounded,filled", color="#2E5C8A", fontcolor="#1F3864"];
+    edge [fontname="Helvetica", fontsize=10, color="#6B7688", fontcolor="#444444"];
+
+    host [label="Tu máquina (host)\nnavegador", shape=ellipse, fillcolor="#FFFFFF", color="#1F3864", fontcolor="#1F3864"];
+
+    subgraph cluster_compose {
+        label="docker-compose.yml — red interna 'default'";
+        style="rounded";
+        color="#1F3864";
+        fontcolor="#1F3864";
+        fontsize=13;
+        bgcolor="#EAF1FB";
+
+        postgres [label="postgres:15\n(puerto 5432)\nDB airflow + gemelo_gold", fillcolor="#FFFFFF"];
+        minio [label="minio\n(puertos 9000 / 9001)\nAlmacenamiento S3 simulado\nBronze / Silver / Gold", fillcolor="#FFFFFF"];
+        airflow_init [label="airflow-init\n(setup: db migrate,\ncrea usuario admin)", fillcolor="#FFFFFF"];
+        airflow_web [label="airflow-webserver\n(puerto 8080)", fillcolor="#FFFFFF"];
+        airflow_sched [label="airflow-scheduler\n(LocalExecutor)", fillcolor="#FFFFFF"];
+
+        volumes [label="Volúmenes montados:\n./dags  ./src  ./config\n(bind mounts)", shape=note, fillcolor="#FFF9E5", color="#B08900", fontcolor="#6B5900"];
+    }
+
+    host -> airflow_web [label="  http://localhost:8080"];
+    host -> minio [label="  http://localhost:9001"];
+
+    airflow_init -> postgres [label="  db migrate"];
+    airflow_web -> postgres [label="  metadata"];
+    airflow_sched -> postgres [label="  metadata"];
+    airflow_sched -> minio [label="  lee/escribe\n  Bronze-Silver-Gold"];
+    airflow_web -> minio [label="  lee resultados"];
+
+    volumes -> airflow_web [style=dashed, arrowhead=none];
+    volumes -> airflow_sched [style=dashed, arrowhead=none];
+}

@@ -8,6 +8,7 @@ nada de negocio aquí (nulos, duplicados, formatos) — eso es trabajo de la
 Capa Silver. Bronze solo preserva el dato crudo de forma auditable.
 """
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -33,9 +34,26 @@ def ingest_csv_to_bronze(
     df["day"] = df["trans_date_trans_time"].dt.day
 
     out_dir = Path(bronze_root)
+    # Limpiamos la carpeta antes de escribir: pandas.to_parquet() con
+    # partition_cols NO borra archivos viejos, solo va agregando archivos
+    # nuevos en cada partición. Sin este borrado, cada re-ejecución deja
+    # datos duplicados y, peor, archivos con esquemas inconsistentes entre
+    # sí (ej. si el formato de una columna cambió entre corridas).
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    df.to_parquet(out_dir, partition_cols=["year", "month", "day"], index=False)
+    # coerce_timestamps='us': pandas/pyarrow escriben fechas por default en
+    # precision de nanosegundos (TIMESTAMP(NANOS)), un tipo de Parquet que
+    # Spark no puede leer ("Illegal Parquet type"). Forzamos microsegundos,
+    # que es el estándar compatible con Spark, Athena, BigQuery, etc.
+    df.to_parquet(
+        out_dir,
+        partition_cols=["year", "month", "day"],
+        index=False,
+        coerce_timestamps="us",
+        allow_truncated_timestamps=True,
+    )
     return len(df)
 
 
