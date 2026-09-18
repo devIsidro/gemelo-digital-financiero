@@ -75,9 +75,17 @@ def run_silver_job(
         silver_df = clean_transactions(bronze_df)
         filas_silver = silver_df.count()
 
-        silver_df.write.mode("overwrite").partitionBy("year", "month", "day").parquet(
-            silver_path
-        )
+        # coalesce(4): junta el resultado en pocos archivos grandes por
+        # partición en vez de cientos de archivos chiquitos (el valor por
+        # defecto de Spark). Con muchos archivos chiquitos, el paso final
+        # de escritura (mover cada archivo de su carpeta temporal al lugar
+        # definitivo) puede fallar de forma intermitente en Docker Desktop
+        # sobre Windows con "FileNotFoundException" — visto en la práctica
+        # corriendo este job localmente. Menos archivos = muchas menos
+        # operaciones de mover archivos = mucho menos probable que falle.
+        silver_df.coalesce(4).write.mode("overwrite").partitionBy(
+            "year", "month", "day"
+        ).parquet(silver_path)
 
         return {
             "filas_bronze": filas_bronze,
