@@ -50,28 +50,47 @@ tiempo) o recortar el alcance de KPIs (Opción C).
 `gold_perfil_cliente` — un renglón por `cc_num`, agregado desde Silver:
 
 - `gasto_total`
-- `gasto_promedio_mensual`
+- `gasto_promedio_mensual` (gasto total / `meses_activo`)
+- `meses_activo` (días entre primera y última transacción / 30.44, mínimo 1)
 - `num_transacciones`
 - `categoria_principal` (la de mayor gasto)
 - `pct_transacciones_fraude`
-- `ultima_transaccion`
+- `primera_transaccion`, `ultima_transaccion`
+- `city_pop`
+
+Todos los montos en USD (moneda original del dataset).
 
 Esto sí alimenta `tasa_exito_ingesta` y la mitad "gasto" de
 `flujo_efectivo_proyectado`, y es la base para el modelo predictivo de
 riesgo más adelante (Fase 5) aunque todavía no tengamos la señal de ingreso.
 
+## Estado actual de Gold (25 sep 2026)
+
+El DAG `bronze_ingest` ya construye Gold después de validar Silver, y
+también ingiere y limpia el dataset Loan Default en paralelo:
+
+| Tabla Gold | Job | Contenido |
+|---|---|---|
+| `data/gold/perfil_cliente` | `gold_transactions.py` | Gasto real por cliente |
+| `data/gold/perfil_financiero_simulado` | `simular_perfil_financiero.py` | Ingreso y score SIMULADOS con fórmula (Opción A) |
+| `data/gold/asignacion_prestamos` | `asignar_prestamos.py` | Llave sintética: un préstamo de Loan Default por cliente |
+| `data/gold/kpis_cliente` | `gold_kpis.py` | Todo lo anterior unido + KPIs |
+
+| KPI | Estado |
+|---|---|
+| `capacidad_ahorro` | Calculado con dos ingresos (simulado y del préstamo); falta elegir con Eduardo |
+| `flujo_efectivo_proyectado` | Base calculada (`flujo_efectivo_mensual`); falta la parte Monte Carlo |
+| `ratio_endeudamiento` | Calculado en dos formas (total y DTI); falta elegir con Eduardo |
+| `prob_impago` | Pendiente: modelo entrenado con las etiquetas de Loan Default |
+
+Detalle de la llave sintética, resultados y preguntas abiertas:
+`docs/fase4_llave_sintetica_prestamos.md`.
+
 ## Siguiente paso
 
-Ya existe `src/spark/gold_transactions.py`, que construye
-`gold_perfil_cliente` sobre Silver (sin datasets adicionales), siguiendo el
-mismo patrón de `silver_transactions.py`. Con la Opción A decidida, lo que
-sigue es:
-
-1. Diseñar y documentar cómo se genera la llave sintética/controlada que
-   simula el vínculo entre un `cc_num` de transacciones y un registro de
-   Loan Default / Income (con sus reglas y supuestos explícitos, para que
-   quede claro que es una simulación y no un dato real).
-2. Ingerir los datasets de Loan Default Prediction e Income a Bronze.
-3. Extender la Capa Gold para unir esa información simulada con
-   `gold_perfil_cliente` y así poder calcular `prob_impago`,
-   `capacidad_ahorro` y `ratio_endeudamiento`.
+1. Revisar con Eduardo las 3 preguntas de
+   `docs/fase4_llave_sintetica_prestamos.md` y dejar una sola versión de
+   cada KPI.
+2. Entrenar el modelo de `prob_impago` con los 255,347 préstamos y
+   aplicarlo a cada cliente con las características de su préstamo
+   asignado.

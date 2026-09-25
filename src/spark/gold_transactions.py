@@ -1,13 +1,15 @@
 """
 Job de PySpark: construcción de la Capa Gold — perfil de cliente
-(Fase 4 / Semana 13, borrador).
+(Fase 4 / Semana 13).
 
 Agrega el dataset de transacciones ya limpio en Silver a nivel de cliente
 (cc_num), sin depender de los datasets de ingreso/crédito que todavía no
 se han ingerido (ver docs/fase4_diseno_capa_gold.md). Es la primera tabla
-Gold del proyecto: alimenta la mitad "gasto" del KPI
-flujo_efectivo_proyectado y la tasa_exito_ingesta, y sirve de base para el
-modelo predictivo de riesgo en Fase 5.
+Gold del proyecto: es la mitad "gasto" de los KPIs capacidad_ahorro y
+flujo_efectivo_proyectado, y sirve de base para la simulación de ingreso
+(simular_perfil_financiero.py) y el modelo de riesgo en Fase 5.
+
+Todos los montos están en USD, la moneda original del dataset de Kaggle.
 
 Silver NO se modifica — este job solo lee de ahí y escribe un dataset
 nuevo en Gold.
@@ -45,10 +47,33 @@ def build_perfil_cliente(silver_df: DataFrame) -> DataFrame:
     # --- Agregados generales por cliente ---
     perfil = df.groupBy("cc_num").agg(
         F.sum("amt").alias("gasto_total"),
-        F.round(F.avg("amt") * F.lit(30), 2).alias("gasto_promedio_mensual_aprox"),
         F.count("trans_num").alias("num_transacciones"),
         F.round(F.avg("is_fraud") * 100, 3).alias("pct_transacciones_fraude"),
+        F.min("trans_date_trans_time").alias("primera_transaccion"),
         F.max("trans_date_trans_time").alias("ultima_transaccion"),
+        # city_pop es fijo por cliente (una dirección por tarjeta en el
+        # dataset); se conserva porque la simulación de ingreso lo usa.
+        F.first("city_pop").alias("city_pop"),
+    )
+
+    # --- Gasto promedio mensual (montos en USD, moneda original del dataset) ---
+    # Meses de actividad = días entre la primera y la última transacción del
+    # cliente / 30.44 (días promedio de un mes), con mínimo de 1 mes para
+    # clientes con muy poca actividad. Antes se usaba avg(amt) * 30, que
+    # suponía 1 compra al día y subestimaba el gasto real ~3 veces (los
+    # clientes reales hacen ~100 compras al mes).
+    perfil = perfil.withColumn(
+        "meses_activo",
+        F.round(
+            F.greatest(
+                F.lit(1.0),
+                F.datediff("ultima_transaccion", "primera_transaccion") / F.lit(30.44),
+            ),
+            2,
+        ),
+    ).withColumn(
+        "gasto_promedio_mensual",
+        F.round(F.col("gasto_total") / F.col("meses_activo"), 2),
     )
 
     return perfil.join(categoria_principal, on="cc_num", how="left")
@@ -70,7 +95,10 @@ def run_gold_job(
         perfil_df = build_perfil_cliente(silver_df)
         num_clientes = perfil_df.count()
 
-        perfil_df.write.mode("overwrite").parquet(gold_path)
+        # coalesce(1): es una tabla chica (un renglón por cliente); un solo
+        # archivo evita el error de escritura de Spark en Docker/Windows
+        # (ver comentario en silver_transactions.py).
+        perfil_df.coalesce(1).write.mode("overwrite").parquet(gold_path)
 
         return {"clientes_procesados": num_clientes}
     finally:

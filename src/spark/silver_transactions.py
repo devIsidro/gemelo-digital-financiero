@@ -55,6 +55,27 @@ def clean_transactions(bronze_df: DataFrame) -> DataFrame:
         .withColumn("day", F.dayofmonth("trans_date_trans_time"))
     )
 
+    # --- Quedarnos solo con el esquema documentado de Silver ---
+    # Bronze trae columnas de datos personales del cliente (nombre,
+    # género, dirección, fecha de nacimiento, coordenadas exactas, etc.)
+    # que no forman parte del esquema de Silver definido en
+    # docs/fase4_diseno_capa_gold.md y que Gold/el dashboard no usan.
+    # Sin este .select() esas columnas pasaban de Bronze a Silver sin
+    # querer — se descartan aquí explícitamente.
+    df = df.select(
+        "trans_num",
+        "cc_num",
+        "amt",
+        "category",
+        "merchant",
+        "trans_date_trans_time",
+        "is_fraud",
+        "city_pop",
+        "year",
+        "month",
+        "day",
+    )
+
     return df
 
 
@@ -75,9 +96,17 @@ def run_silver_job(
         silver_df = clean_transactions(bronze_df)
         filas_silver = silver_df.count()
 
-        silver_df.write.mode("overwrite").partitionBy("year", "month", "day").parquet(
-            silver_path
-        )
+        # coalesce(4): junta el resultado en pocos archivos grandes por
+        # partición en vez de cientos de archivos chiquitos (el valor por
+        # defecto de Spark). Con muchos archivos chiquitos, el paso final
+        # de escritura (mover cada archivo de su carpeta temporal al lugar
+        # definitivo) puede fallar de forma intermitente en Docker Desktop
+        # sobre Windows con "FileNotFoundException" — visto en la práctica
+        # corriendo este job localmente. Menos archivos = muchas menos
+        # operaciones de mover archivos = mucho menos probable que falle.
+        silver_df.coalesce(4).write.mode("overwrite").partitionBy(
+            "year", "month", "day"
+        ).parquet(silver_path)
 
         return {
             "filas_bronze": filas_bronze,
