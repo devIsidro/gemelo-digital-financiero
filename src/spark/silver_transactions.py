@@ -55,6 +55,27 @@ def clean_transactions(bronze_df: DataFrame) -> DataFrame:
         .withColumn("day", F.dayofmonth("trans_date_trans_time"))
     )
 
+    # --- Quedarnos solo con el esquema documentado de Silver ---
+    # Bronze trae columnas de datos personales del cliente (nombre,
+    # género, dirección, fecha de nacimiento, coordenadas exactas, etc.)
+    # que no forman parte del esquema de Silver definido en
+    # docs/fase4_diseno_capa_gold.md y que Gold/el dashboard no usan.
+    # Sin este .select() esas columnas pasaban de Bronze a Silver sin
+    # querer — se descartan aquí explícitamente.
+    df = df.select(
+        "trans_num",
+        "cc_num",
+        "amt",
+        "category",
+        "merchant",
+        "trans_date_trans_time",
+        "is_fraud",
+        "city_pop",
+        "year",
+        "month",
+        "day",
+    )
+
     return df
 
 
