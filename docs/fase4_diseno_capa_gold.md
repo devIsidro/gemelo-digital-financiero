@@ -66,31 +66,31 @@ riesgo más adelante (Fase 5) aunque todavía no tengamos la señal de ingreso.
 
 ## Estado actual de Gold (25 sep 2026)
 
-El DAG `bronze_ingest` ya construye Gold después de validar Silver:
+El DAG `bronze_ingest` ya construye Gold después de validar Silver, y
+también ingiere y limpia el dataset Loan Default en paralelo:
 
 | Tabla Gold | Job | Contenido |
 |---|---|---|
 | `data/gold/perfil_cliente` | `gold_transactions.py` | Gasto real por cliente |
-| `data/gold/perfil_financiero_simulado` | `simular_perfil_financiero.py` | Ingreso y score SIMULADOS (Opción A) |
-| `data/gold/kpis_cliente` | `gold_kpis.py` | Las dos anteriores unidas + `capacidad_ahorro` y `flujo_efectivo_mensual` |
+| `data/gold/perfil_financiero_simulado` | `simular_perfil_financiero.py` | Ingreso y score SIMULADOS con fórmula (Opción A) |
+| `data/gold/asignacion_prestamos` | `asignar_prestamos.py` | Llave sintética: un préstamo de Loan Default por cliente |
+| `data/gold/kpis_cliente` | `gold_kpis.py` | Todo lo anterior unido + KPIs |
 
 | KPI | Estado |
 |---|---|
-| `capacidad_ahorro` | Calculado (ingreso simulado, gasto real) |
+| `capacidad_ahorro` | Calculado con dos ingresos (simulado y del préstamo); falta elegir con Eduardo |
 | `flujo_efectivo_proyectado` | Base calculada (`flujo_efectivo_mensual`); falta la parte Monte Carlo |
-| `ratio_endeudamiento` | Pendiente: dataset Loan Default |
-| `prob_impago` | Pendiente: dataset Loan Default + modelo |
+| `ratio_endeudamiento` | Calculado en dos formas (total y DTI); falta elegir con Eduardo |
+| `prob_impago` | Pendiente: modelo entrenado con las etiquetas de Loan Default |
+
+Detalle de la llave sintética, resultados y preguntas abiertas:
+`docs/fase4_llave_sintetica_prestamos.md`.
 
 ## Siguiente paso
 
-Decisión del 25 sep 2026: traer el dataset **Loan Default Prediction**
-(Kaggle) para `ratio_endeudamiento` y `prob_impago`.
-
-1. Ingerir Loan Default a Bronze (mismo patrón que
-   `ingest_fraud_transactions.py`).
-2. Diseñar y documentar la llave sintética/controlada que asigna a cada
-   `cc_num` un registro de Loan Default (con sus reglas y supuestos
-   explícitos, para que quede claro que es una simulación y no un dato
-   real).
-3. Extender `gold_kpis.py` con `ratio_endeudamiento` y entrenar el modelo
-   de `prob_impago` con las etiquetas reales de impago de ese dataset.
+1. Revisar con Eduardo las 3 preguntas de
+   `docs/fase4_llave_sintetica_prestamos.md` y dejar una sola versión de
+   cada KPI.
+2. Entrenar el modelo de `prob_impago` con los 255,347 préstamos y
+   aplicarlo a cada cliente con las características de su préstamo
+   asignado.

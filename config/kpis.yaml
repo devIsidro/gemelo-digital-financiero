@@ -25,9 +25,10 @@ kpis:
       columnas: [income, credit_history, loan_amount, default]
     capa: "Gold"
     nota_fase4: >
-      Pendiente. Decisión del 25 sep 2026: se traerá el dataset Loan Default
-      Prediction (Kaggle) y se asignará a cada cliente con la llave sintética,
-      para tener etiquetas reales de impago con qué entrenar el modelo.
+      Pendiente (siguiente fase). El dataset Loan Default ya está en el pipeline
+      (Bronze/Silver) y cada cliente tiene un préstamo asignado con la llave
+      sintética (docs/fase4_llave_sintetica_prestamos.md). El modelo se
+      entrenará con las etiquetas de impago de los 255,347 préstamos.
 
   - id: flujo_efectivo_proyectado
     nombre: "Flujo de efectivo proyectado"
@@ -57,9 +58,11 @@ kpis:
       columnas: [income, expense, date]
     capa: "Silver -> Gold"
     nota_fase4: >
-      Calculado en src/spark/gold_kpis.py (tabla data/gold/kpis_cliente).
-      income es simulado (Opción A); expense es el gasto real con tarjeta de
-      Silver (gasto total / meses de actividad). Puede ser negativo.
+      Calculado en src/spark/gold_kpis.py (tabla data/gold/kpis_cliente) con
+      dos fuentes de ingreso, pendiente de elegir con Eduardo:
+      capacidad_ahorro (ingreso simulado con fórmula) y
+      capacidad_ahorro_ingreso_prestamo (ingreso del préstamo asignado).
+      expense es el gasto real con tarjeta de Silver. Puede ser negativo.
 
   - id: ratio_endeudamiento
     nombre: "Ratio de endeudamiento"
@@ -70,9 +73,10 @@ kpis:
       columnas: [loan_amount, income]
     capa: "Gold"
     nota_fase4: >
-      Pendiente. Decisión del 25 sep 2026: loan_amount vendrá del dataset
-      Loan Default Prediction (Kaggle), asignado a cada cliente con la llave
-      sintética.
+      Calculado en src/spark/gold_kpis.py en dos formas, pendiente de elegir
+      con Eduardo: ratio_endeudamiento_total (loan_amount / income anual, esta
+      fórmula) y ratio_endeudamiento_dti (DTIRatio del dataset). Ambos vienen
+      del préstamo asignado con la llave sintética (Opción A).
 
   - id: tasa_exito_ingesta
     nombre: "Tasa de éxito y volumen de ingesta"

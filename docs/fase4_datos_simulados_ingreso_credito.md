@@ -105,9 +105,7 @@ Se corrigió a gasto total / meses de actividad.
 
 ## Siguiente paso
 
-`ratio_endeudamiento` y `prob_impago` necesitan deuda y etiquetas reales de
-impago, que no se pueden sacar de estas reglas. Decisión del 25 sep 2026:
-traer el dataset **Loan Default Prediction** de Kaggle y asignar a cada
-cliente un registro de ese dataset con la llave sintética/controlada. Cuando
-eso exista, su ingreso real (anual, en USD) puede reemplazar al ingreso
-simulado de este documento.
+Ya se integró el dataset Loan Default con una llave sintética
+(`docs/fase4_llave_sintetica_prestamos.md`). Su ingreso y su score pueden
+reemplazar a los simulados de este documento; queda pendiente decidirlo con
+Eduardo (preguntas 2 y 3 de ese documento).
