@@ -15,9 +15,9 @@ ninguna persona. Es una construcción para poder ejercitar el pipeline
 completo (KPIs de riesgo) dentro del "problema de negocio simulado" del
 proyecto.
 
-Este job todavía no se ha corrido ni se ha conectado a Airflow — es la
-primera versión del código, pendiente de probarse una vez que exista un
-Bronze/Silver con datos reales para correr sobre ellos.
+Probado sobre el Silver real completo (924 clientes). Es un puente: cuando
+se integre el dataset de Loan Default (decisión del 25 sep 2026), el
+ingreso de ese dataset puede reemplazar al simulado aquí.
 """
 
 import sys
@@ -25,9 +25,13 @@ import sys
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
+from src.spark.gold_transactions import build_perfil_cliente
+
 # --- Constantes documentadas (ver docs/fase4_datos_simulados_ingreso_credito.md) ---
 
-# Tramos de ingreso base según tamaño de ciudad (city_pop), en MXN/mes.
+# Tramos de ingreso base según tamaño de ciudad (city_pop), en USD/mes.
+# Todo el proyecto usa USD, la moneda original del dataset de transacciones
+# (clientes de EE.UU.), para que ingreso y gasto se puedan comparar directo.
 CIUDAD_PEQUENA_MAX = 50_000
 CIUDAD_MEDIANA_MAX = 300_000
 INGRESO_BASE_PEQUENA = 12_000
@@ -57,8 +61,11 @@ def _variacion_pseudoaleatoria(
     cc_num + una sal distinta por variable (para que ingreso y score no
     varíen de forma idéntica). Mismo cliente -> mismo resultado siempre.
     """
-    hash_col = F.abs(F.hash(F.concat(F.col(columna_cc_num), F.lit(sal))))
-    fraccion_0_a_1 = (hash_col % F.lit(10_000)) / F.lit(10_000.0)
+    # pmod (módulo siempre positivo) en vez de abs(hash) % 10_000: abs() del
+    # entero más negativo se desborda, y en Spark 4 (modo ANSI, el de la
+    # imagen de Docker) eso lanza un error en vez de devolver un valor.
+    hash_col = F.hash(F.concat(F.col(columna_cc_num).cast("string"), F.lit(sal)))
+    fraccion_0_a_1 = F.pmod(hash_col, F.lit(10_000)) / F.lit(10_000.0)
     return (fraccion_0_a_1 * F.lit(2 * rango)) - F.lit(rango)
 
 
@@ -68,11 +75,15 @@ def build_perfil_financiero_simulado(silver_df: DataFrame) -> DataFrame:
     """
 
     # --- Señales reales por cliente, agregadas desde Silver ---
-    perfil_real = silver_df.groupBy("cc_num").agg(
-        F.first("city_pop").alias("city_pop"),
-        F.round(F.avg("amt") * F.lit(30), 2).alias("gasto_promedio_mensual_aprox"),
-        F.count("trans_num").alias("num_transacciones"),
-        F.round(F.avg("is_fraud") * 100, 3).alias("pct_transacciones_fraude"),
+    # Se reutiliza el mismo perfil de gold_perfil_cliente para que el gasto
+    # mensual se calcule en un solo lugar (y no pueda haber dos versiones
+    # distintas del mismo número).
+    perfil_real = build_perfil_cliente(silver_df).select(
+        "cc_num",
+        "city_pop",
+        "gasto_promedio_mensual",
+        "num_transacciones",
+        "pct_transacciones_fraude",
     )
 
     # --- Ingreso mensual simulado ---
@@ -85,7 +96,7 @@ def build_perfil_financiero_simulado(silver_df: DataFrame) -> DataFrame:
         "cc_num", "ingreso", VARIACION_INGRESO_RANGO
     )
     ingreso_sin_limite = ingreso_base * (F.lit(1.0) + variacion_ingreso) + (
-        F.lit(FACTOR_GASTO) * F.col("gasto_promedio_mensual_aprox")
+        F.lit(FACTOR_GASTO) * F.col("gasto_promedio_mensual")
     )
     ingreso_mensual_simulado = F.round(
         F.greatest(
@@ -155,7 +166,8 @@ def run_simulacion_job(
         perfil_df = build_perfil_financiero_simulado(silver_df)
         num_clientes = perfil_df.count()
 
-        perfil_df.write.mode("overwrite").parquet(salida_path)
+        # coalesce(1): tabla chica, un solo archivo (ver silver_transactions.py).
+        perfil_df.coalesce(1).write.mode("overwrite").parquet(salida_path)
 
         return {"clientes_procesados": num_clientes}
     finally:

@@ -6,6 +6,9 @@
 # transacciones. Los KPIs marcados con "nota_fase4" abajo se calcularán con
 # un ingreso e historial crediticio simulados (Opción A), ver
 # docs/fase4_diseno_capa_gold.md y docs/fase4_datos_simulados_ingreso_credito.md.
+#
+# Moneda (decisión del 25 sep 2026): todos los montos están en USD, la moneda
+# original del dataset de transacciones (clientes de EE.UU.).
 
 kpis:
   - id: prob_impago
@@ -21,7 +24,10 @@ kpis:
       dataset: "Loan Default Prediction Dataset (Kaggle)"
       columnas: [income, credit_history, loan_amount, default]
     capa: "Gold"
-    nota_fase4: "income y credit_history serán simulados (Opción A)."
+    nota_fase4: >
+      Pendiente. Decisión del 25 sep 2026: se traerá el dataset Loan Default
+      Prediction (Kaggle) y se asignará a cada cliente con la llave sintética,
+      para tener etiquetas reales de impago con qué entrenar el modelo.
 
   - id: flujo_efectivo_proyectado
     nombre: "Flujo de efectivo proyectado"
@@ -37,7 +43,8 @@ kpis:
     capa: "Gold"
     nota_fase4: >
       La parte de gasto ya es real (Silver); la parte de ingreso_promedio_mensual
-      será simulada (Opción A) hasta tener un dataset real de ingreso.
+      es simulada (Opción A). La base (ingreso - gasto, sin Monte Carlo) ya se
+      calcula como flujo_efectivo_mensual en src/spark/gold_kpis.py.
 
   - id: capacidad_ahorro
     nombre: "Capacidad de ahorro mensual"
@@ -49,7 +56,10 @@ kpis:
       dataset: "Financial Transactions Dataset - Expenses & Income (Kaggle)"
       columnas: [income, expense, date]
     capa: "Silver -> Gold"
-    nota_fase4: "income será simulado (Opción A); expense se cubre con el gasto real de Silver."
+    nota_fase4: >
+      Calculado en src/spark/gold_kpis.py (tabla data/gold/kpis_cliente).
+      income es simulado (Opción A); expense es el gasto real con tarjeta de
+      Silver (gasto total / meses de actividad). Puede ser negativo.
 
   - id: ratio_endeudamiento
     nombre: "Ratio de endeudamiento"
@@ -59,7 +69,10 @@ kpis:
       dataset: "Loan Default Prediction Dataset (Kaggle)"
       columnas: [loan_amount, income]
     capa: "Gold"
-    nota_fase4: "loan_amount e income serán simulados (Opción A)."
+    nota_fase4: >
+      Pendiente. Decisión del 25 sep 2026: loan_amount vendrá del dataset
+      Loan Default Prediction (Kaggle), asignado a cada cliente con la llave
+      sintética.
 
   - id: tasa_exito_ingesta
     nombre: "Tasa de éxito y volumen de ingesta"

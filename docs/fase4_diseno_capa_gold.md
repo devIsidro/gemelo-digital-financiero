@@ -50,28 +50,47 @@ tiempo) o recortar el alcance de KPIs (Opción C).
 `gold_perfil_cliente` — un renglón por `cc_num`, agregado desde Silver:
 
 - `gasto_total`
-- `gasto_promedio_mensual`
+- `gasto_promedio_mensual` (gasto total / `meses_activo`)
+- `meses_activo` (días entre primera y última transacción / 30.44, mínimo 1)
 - `num_transacciones`
 - `categoria_principal` (la de mayor gasto)
 - `pct_transacciones_fraude`
-- `ultima_transaccion`
+- `primera_transaccion`, `ultima_transaccion`
+- `city_pop`
+
+Todos los montos en USD (moneda original del dataset).
 
 Esto sí alimenta `tasa_exito_ingesta` y la mitad "gasto" de
 `flujo_efectivo_proyectado`, y es la base para el modelo predictivo de
 riesgo más adelante (Fase 5) aunque todavía no tengamos la señal de ingreso.
 
+## Estado actual de Gold (25 sep 2026)
+
+El DAG `bronze_ingest` ya construye Gold después de validar Silver:
+
+| Tabla Gold | Job | Contenido |
+|---|---|---|
+| `data/gold/perfil_cliente` | `gold_transactions.py` | Gasto real por cliente |
+| `data/gold/perfil_financiero_simulado` | `simular_perfil_financiero.py` | Ingreso y score SIMULADOS (Opción A) |
+| `data/gold/kpis_cliente` | `gold_kpis.py` | Las dos anteriores unidas + `capacidad_ahorro` y `flujo_efectivo_mensual` |
+
+| KPI | Estado |
+|---|---|
+| `capacidad_ahorro` | Calculado (ingreso simulado, gasto real) |
+| `flujo_efectivo_proyectado` | Base calculada (`flujo_efectivo_mensual`); falta la parte Monte Carlo |
+| `ratio_endeudamiento` | Pendiente: dataset Loan Default |
+| `prob_impago` | Pendiente: dataset Loan Default + modelo |
+
 ## Siguiente paso
 
-Ya existe `src/spark/gold_transactions.py`, que construye
-`gold_perfil_cliente` sobre Silver (sin datasets adicionales), siguiendo el
-mismo patrón de `silver_transactions.py`. Con la Opción A decidida, lo que
-sigue es:
+Decisión del 25 sep 2026: traer el dataset **Loan Default Prediction**
+(Kaggle) para `ratio_endeudamiento` y `prob_impago`.
 
-1. Diseñar y documentar cómo se genera la llave sintética/controlada que
-   simula el vínculo entre un `cc_num` de transacciones y un registro de
-   Loan Default / Income (con sus reglas y supuestos explícitos, para que
-   quede claro que es una simulación y no un dato real).
-2. Ingerir los datasets de Loan Default Prediction e Income a Bronze.
-3. Extender la Capa Gold para unir esa información simulada con
-   `gold_perfil_cliente` y así poder calcular `prob_impago`,
-   `capacidad_ahorro` y `ratio_endeudamiento`.
+1. Ingerir Loan Default a Bronze (mismo patrón que
+   `ingest_fraud_transactions.py`).
+2. Diseñar y documentar la llave sintética/controlada que asigna a cada
+   `cc_num` un registro de Loan Default (con sus reglas y supuestos
+   explícitos, para que quede claro que es una simulación y no un dato
+   real).
+3. Extender `gold_kpis.py` con `ratio_endeudamiento` y entrenar el modelo
+   de `prob_impago` con las etiquetas reales de impago de ese dataset.
