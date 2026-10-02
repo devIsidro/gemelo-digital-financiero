@@ -1,23 +1,27 @@
 """
-Job de PySpark: generación de ingreso e historial crediticio SIMULADOS por
-cliente (Fase 4 — Opción A, decisión con Eduardo del 11 sep 2026).
+Job de PySpark: generación del ingreso mensual SIMULADO por cliente
+(Fase 4 — Opción A, decisión con Eduardo del 11 sep 2026).
 
 Los datasets de income/credit_history (Loan Default Prediction, Financial
 Transactions - Expenses & Income) no comparten un cliente real con el
 dataset de transacciones ya ingerido en Silver. Este job construye, de
-forma controlada y reproducible (no al azar), un ingreso mensual y un
-historial crediticio simulados por cliente (`cc_num`), siguiendo
-exactamente las fórmulas documentadas en
+forma controlada y reproducible (no al azar), un ingreso mensual simulado
+por cliente (`cc_num`), siguiendo exactamente la fórmula documentada en
 `docs/fase4_datos_simulados_ingreso_credito.md`.
 
-IMPORTANTE: estos valores NO representan el ingreso o historial real de
-ninguna persona. Es una construcción para poder ejercitar el pipeline
-completo (KPIs de riesgo) dentro del "problema de negocio simulado" del
-proyecto.
+Uso del ingreso simulado (decisión con Eduardo, oct 2026): SOLO para
+capacidad_ahorro y flujo_efectivo_mensual. El modelo de impago y el DTI usan
+el ingreso que viene en el dataset Loan Default (ingreso_mensual_fuente), y
+los dos conceptos se mantienen separados en kpis_cliente.
 
-Probado sobre el Silver real completo (924 clientes). Es un puente: cuando
-se integre el dataset de Loan Default (decisión del 25 sep 2026), el
-ingreso de ese dataset puede reemplazar al simulado aquí.
+Este job también generaba un score de crédito simulado. Se descartó en
+oct 2026 (ver docs/fase4_decisiones_kpis.md): casi todos los clientes salían
+en 850 y la fórmula penalizaba a las víctimas de fraude. El score que se usa
+ahora es el del préstamo asignado (score_credito_fuente).
+
+IMPORTANTE: estos valores NO representan el ingreso real de ninguna
+persona. Es una construcción para poder ejercitar el pipeline completo
+dentro del "problema de negocio simulado" del proyecto.
 """
 
 import sys
@@ -43,12 +47,6 @@ VARIACION_INGRESO_RANGO = 0.20  # variación pseudoaleatoria ±20%
 INGRESO_MINIMO = 8_000
 INGRESO_MAXIMO = 120_000
 
-SCORE_MAXIMO = 850
-SCORE_MINIMO = 300
-FACTOR_PENALIZACION_FRAUDE = 3.0  # puntos de score restados por cada 1% de fraude
-BONIFICACION_ANTIGUEDAD_MAX = 40  # puntos ganados por tener muchas transacciones
-VARIACION_SCORE_RANGO = 30  # variación pseudoaleatoria ± puntos
-
 
 def build_spark(app_name: str = "simular_perfil_financiero") -> SparkSession:
     return SparkSession.builder.appName(app_name).getOrCreate()
@@ -58,8 +56,8 @@ def _variacion_pseudoaleatoria(
     columna_cc_num: str, sal: str, rango: float
 ) -> "F.Column":
     """Devuelve un valor determinístico en [-rango, rango], semillado por
-    cc_num + una sal distinta por variable (para que ingreso y score no
-    varíen de forma idéntica). Mismo cliente -> mismo resultado siempre.
+    cc_num + una sal (texto fijo por variable). Mismo cliente -> mismo
+    resultado siempre.
     """
     # pmod (módulo siempre positivo) en vez de abs(hash) % 10_000: abs() del
     # entero más negativo se desborda, y en Spark 4 (modo ANSI, el de la
@@ -70,8 +68,8 @@ def _variacion_pseudoaleatoria(
 
 
 def build_perfil_financiero_simulado(silver_df: DataFrame) -> DataFrame:
-    """Agrega Silver a nivel de cliente y le asigna un ingreso mensual y un
-    historial crediticio simulados, siguiendo las fórmulas documentadas.
+    """Agrega Silver a nivel de cliente y le asigna un ingreso mensual
+    simulado, siguiendo la fórmula documentada.
     """
 
     # --- Señales reales por cliente, agregadas desde Silver ---
@@ -82,8 +80,6 @@ def build_perfil_financiero_simulado(silver_df: DataFrame) -> DataFrame:
         "cc_num",
         "city_pop",
         "gasto_promedio_mensual",
-        "num_transacciones",
-        "pct_transacciones_fraude",
     )
 
     # --- Ingreso mensual simulado ---
@@ -106,46 +102,9 @@ def build_perfil_financiero_simulado(silver_df: DataFrame) -> DataFrame:
         2,
     )
 
-    # --- Historial crediticio simulado ---
-    penalizacion_fraude = F.col("pct_transacciones_fraude") * F.lit(
-        FACTOR_PENALIZACION_FRAUDE
-    )
-    bonificacion_antiguedad = F.least(
-        F.lit(float(BONIFICACION_ANTIGUEDAD_MAX)),
-        F.col("num_transacciones") * F.lit(0.5),
-    )
-    variacion_score = _variacion_pseudoaleatoria(
-        "cc_num", "score", float(VARIACION_SCORE_RANGO)
-    )
-    score_sin_limite = (
-        F.lit(float(SCORE_MAXIMO))
-        - penalizacion_fraude
-        + bonificacion_antiguedad
-        + variacion_score
-    )
-    score_credito_simulado = F.round(
-        F.greatest(
-            F.lit(float(SCORE_MINIMO)),
-            F.least(F.lit(float(SCORE_MAXIMO)), score_sin_limite),
-        )
-    ).cast("int")
-
-    categoria_credito_simulada = (
-        F.when(score_credito_simulado >= 700, F.lit("Bueno"))
-        .when(score_credito_simulado >= 550, F.lit("Regular"))
-        .otherwise(F.lit("Malo"))
-    )
-
-    return (
-        perfil_real.withColumn("ingreso_mensual_simulado", ingreso_mensual_simulado)
-        .withColumn("score_credito_simulado", score_credito_simulado)
-        .withColumn("categoria_credito_simulada", categoria_credito_simulada)
-        .select(
-            "cc_num",
-            "ingreso_mensual_simulado",
-            "score_credito_simulado",
-            "categoria_credito_simulada",
-        )
+    return perfil_real.select(
+        "cc_num",
+        ingreso_mensual_simulado.alias("ingreso_mensual_simulado"),
     )
 
 
@@ -153,8 +112,8 @@ def run_simulacion_job(
     silver_path: str = "data/silver/transactions",
     salida_path: str = "data/gold/perfil_financiero_simulado",
 ) -> dict:
-    """Corre el job completo: lee Silver, simula ingreso/crédito por
-    cliente, escribe el resultado.
+    """Corre el job completo: lee Silver, simula el ingreso por cliente y
+    escribe el resultado.
 
     Devuelve un resumen (clientes procesados) para poder loguearlo desde
     el DAG de Airflow.
@@ -183,5 +142,5 @@ if __name__ == "__main__":
     resumen = run_simulacion_job(silver_arg, salida_arg)
     print(
         f"Simulación completa: {resumen['clientes_procesados']:,} clientes en "
-        f"{salida_arg}/ (ingreso e historial crediticio SIMULADOS, Opción A)"
+        f"{salida_arg}/ (ingreso SIMULADO, Opción A)"
     )

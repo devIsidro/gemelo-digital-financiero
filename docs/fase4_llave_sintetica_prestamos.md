@@ -61,35 +61,19 @@ Limitación: solo se empareja por gasto ↔ ingreso. Las demás
 características del préstamo (edad, score, monto, si pagó o no) llegan tal
 cual vienen con ese registro.
 
-## Resultados sobre los datos reales (924 clientes)
+## Uso de los datos del préstamo asignado
 
-| KPI | Mediana | Nota |
-|---|---|---|
-| `capacidad_ahorro` (ingreso simulado con fórmula) | 60% | 14 clientes negativos |
-| `capacidad_ahorro_ingreso_prestamo` | 9% | 183 clientes negativos |
-| `ratio_endeudamiento_total` (préstamo / ingreso anual) | 1.52 | rango 0.04 – 14.5 |
-| `ratio_endeudamiento_dti` (`DTIRatio`) | 0.50 | rango 0.10 – 0.90 |
-| Score de crédito del préstamo asignado | 568 | rango 300 – 849 |
+Decidido con Eduardo (oct 2026), detalle en `docs/fase4_decisiones_kpis.md`:
 
-Por qué salen 183 clientes con ahorro negativo usando el ingreso del
-préstamo: el ingreso de Loan Default está repartido de forma uniforme entre
-1,250 y 12,500 USD al mes, y el gasto con tarjeta no. En los extremos no
-cuadran. De los 183 negativos, 69 están en el 10% que menos gasta y 114 en
-el 20% que más gasta (el 10% más alto sale negativo completo: gasta entre
-~11,800 y ~22,000 USD al mes, y el ingreso máximo del dataset es 12,500).
-En el 70% de en medio no
-hay ningún negativo; su ahorro mediano va de 6% a 13% según el grupo.
+- `score_credito_fuente`: el score del préstamo asignado reemplaza al score
+  simulado.
+- `ingreso_mensual_fuente` (`Income` / 12): se usa para el DTI y el modelo
+  de impago. La capacidad de ahorro sigue usando el ingreso simulado.
+- `ratio_endeudamiento`: DTI calculado con el pago mensual del préstamo
+  (monto, tasa y plazo) entre `ingreso_mensual_fuente`. El `DTIRatio` del
+  dataset no se usa.
 
-## Preguntas para Eduardo
-
-1. **¿Cómo medimos `ratio_endeudamiento`?**
-   - Préstamo total / ingreso anual (la fórmula del catálogo de KPIs), o
-   - `DTIRatio`: qué parte del ingreso mensual se va en pagar deudas (como lo
-     mide normalmente un banco).
-2. **¿Qué ingreso usamos para `capacidad_ahorro`?**
-   - El simulado con fórmula (mediana 60%, varía más entre clientes, pero
-     ingresos altos: ~14,500 USD/mes), o
-   - El del préstamo asignado (mediana 9%, más realista, pero los extremos
-     salen negativos por la forma de los datos).
-3. **¿Reemplazamos el score simulado por el del préstamo?** El simulado deja
-   a 906 de 924 clientes en 850; el del préstamo va de 300 a 849.
+Las alternativas que se evaluaron antes de decidir (ahorro con el ingreso
+del préstamo, `DTIRatio` del dataset, monto / ingreso anual) se quitaron del
+código para que no se mezclen; sus resultados quedan en el historial de Git
+(commit `28d3d58`).

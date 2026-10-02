@@ -64,7 +64,7 @@ Esto sí alimenta `tasa_exito_ingesta` y la mitad "gasto" de
 `flujo_efectivo_proyectado`, y es la base para el modelo predictivo de
 riesgo más adelante (Fase 5) aunque todavía no tengamos la señal de ingreso.
 
-## Estado actual de Gold (25 sep 2026)
+## Estado actual de Gold (oct 2026)
 
 El DAG `bronze_ingest` ya construye Gold después de validar Silver, y
 también ingiere y limpia el dataset Loan Default en paralelo:
@@ -72,25 +72,25 @@ también ingiere y limpia el dataset Loan Default en paralelo:
 | Tabla Gold | Job | Contenido |
 |---|---|---|
 | `data/gold/perfil_cliente` | `gold_transactions.py` | Gasto real por cliente |
-| `data/gold/perfil_financiero_simulado` | `simular_perfil_financiero.py` | Ingreso y score SIMULADOS con fórmula (Opción A) |
+| `data/gold/perfil_financiero_simulado` | `simular_perfil_financiero.py` | Ingreso SIMULADO con fórmula (Opción A) |
 | `data/gold/asignacion_prestamos` | `asignar_prestamos.py` | Llave sintética: un préstamo de Loan Default por cliente |
 | `data/gold/kpis_cliente` | `gold_kpis.py` | Todo lo anterior unido + KPIs |
 
 | KPI | Estado |
 |---|---|
-| `capacidad_ahorro` | Calculado con dos ingresos (simulado y del préstamo); falta elegir con Eduardo |
+| `capacidad_ahorro` | Calculado con el ingreso simulado |
 | `flujo_efectivo_proyectado` | Base calculada (`flujo_efectivo_mensual`); falta la parte Monte Carlo |
-| `ratio_endeudamiento` | Calculado en dos formas (total y DTI); falta elegir con Eduardo |
+| `ratio_endeudamiento` | Calculado: DTI con fórmula propia (pago mensual / ingreso mensual de la fuente) |
 | `prob_impago` | Pendiente: modelo entrenado con las etiquetas de Loan Default |
 
-Detalle de la llave sintética, resultados y preguntas abiertas:
-`docs/fase4_llave_sintetica_prestamos.md`.
+Detalle de la llave sintética: `docs/fase4_llave_sintetica_prestamos.md`.
+Decisiones sobre score, ingreso y DTI, distribuciones y casos
+representativos: `docs/fase4_decisiones_kpis.md`.
 
 ## Siguiente paso
 
-1. Revisar con Eduardo las 3 preguntas de
-   `docs/fase4_llave_sintetica_prestamos.md` y dejar una sola versión de
-   cada KPI.
+1. Revisar con Eduardo las distribuciones y los casos representativos de
+   `docs/fase4_decisiones_kpis.md` para cerrar la parte de KPIs.
 2. Entrenar el modelo de `prob_impago` con los 255,347 préstamos y
    aplicarlo a cada cliente con las características de su préstamo
    asignado.

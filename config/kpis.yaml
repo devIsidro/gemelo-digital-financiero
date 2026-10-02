@@ -28,7 +28,9 @@ kpis:
       Pendiente (siguiente fase). El dataset Loan Default ya está en el pipeline
       (Bronze/Silver) y cada cliente tiene un préstamo asignado con la llave
       sintética (docs/fase4_llave_sintetica_prestamos.md). El modelo se
-      entrenará con las etiquetas de impago de los 255,347 préstamos.
+      entrenará con las etiquetas de impago de los 255,347 préstamos y usará
+      ingreso_mensual_fuente y score_credito_fuente (nunca el ingreso
+      simulado), ver docs/fase4_decisiones_kpis.md.
 
   - id: flujo_efectivo_proyectado
     nombre: "Flujo de efectivo proyectado"
@@ -43,9 +45,9 @@ kpis:
       columnas: [amt, category, trans_date_trans_time, cc_num]
     capa: "Gold"
     nota_fase4: >
-      La parte de gasto ya es real (Silver); la parte de ingreso_promedio_mensual
-      es simulada (Opción A). La base (ingreso - gasto, sin Monte Carlo) ya se
-      calcula como flujo_efectivo_mensual en src/spark/gold_kpis.py.
+      La parte de gasto ya es real (Silver); el ingreso es
+      ingreso_mensual_simulado (Opción A). La base (ingreso - gasto, sin Monte
+      Carlo) ya se calcula como flujo_efectivo_mensual en src/spark/gold_kpis.py.
 
   - id: capacidad_ahorro
     nombre: "Capacidad de ahorro mensual"
@@ -58,25 +60,31 @@ kpis:
       columnas: [income, expense, date]
     capa: "Silver -> Gold"
     nota_fase4: >
-      Calculado en src/spark/gold_kpis.py (tabla data/gold/kpis_cliente) con
-      dos fuentes de ingreso, pendiente de elegir con Eduardo:
-      capacidad_ahorro (ingreso simulado con fórmula) y
-      capacidad_ahorro_ingreso_prestamo (ingreso del préstamo asignado).
-      expense es el gasto real con tarjeta de Silver. Puede ser negativo.
+      Calculado en src/spark/gold_kpis.py (tabla data/gold/kpis_cliente).
+      income = ingreso_mensual_simulado (Opción A, decisión con Eduardo,
+      oct 2026); expense = gasto real con tarjeta de Silver (gasto total /
+      meses de actividad). Puede ser negativo.
 
   - id: ratio_endeudamiento
     nombre: "Ratio de endeudamiento"
-    definicion: "Proporción de la deuda total del cliente respecto a su ingreso anual."
-    formula: "Ratio_endeudamiento = deuda_total / ingreso_anual"
+    definicion: >
+      DTI (debt-to-income): proporción del ingreso mensual del cliente que se
+      va en el pago mensual de su préstamo.
+    formula: >
+      Ratio_endeudamiento = pago_mensual_prestamo / ingreso_mensual_fuente,
+      con pago_mensual_prestamo = monto * r / (1 - (1 + r)^-n),
+      r = tasa anual / 100 / 12, n = plazo en meses, e
+      ingreso_mensual_fuente = Income / 12. Ambos mensuales, en USD.
     fuente:
       dataset: "Loan Default Prediction Dataset (Kaggle)"
-      columnas: [loan_amount, income]
+      columnas: [LoanAmount, InterestRate, LoanTerm, Income]
     capa: "Gold"
     nota_fase4: >
-      Calculado en src/spark/gold_kpis.py en dos formas, pendiente de elegir
-      con Eduardo: ratio_endeudamiento_total (loan_amount / income anual, esta
-      fórmula) y ratio_endeudamiento_dti (DTIRatio del dataset). Ambos vienen
-      del préstamo asignado con la llave sintética (Opción A).
+      Decisión con Eduardo (oct 2026): DTI con fórmula propia documentada. No
+      se usa el DTIRatio del dataset (no está documentado ni es reproducible).
+      Reemplaza a la fórmula preliminar de Fase 1 (deuda_total / ingreso_anual).
+      Solo incluye el préstamo asignado. Puede ser mayor a 1. Detalle en
+      docs/fase4_decisiones_kpis.md.
 
   - id: tasa_exito_ingesta
     nombre: "Tasa de éxito y volumen de ingesta"

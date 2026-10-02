@@ -59,7 +59,12 @@ ingreso_mensual_simulado    = clamp(
   $8,000 y $120,000 USD/mes). Tramos base: ciudad pequeña (< 50,000 hab.)
   12,000 USD, mediana (< 300,000 hab.) 18,000 USD, grande 26,000 USD.
 
-## Regla propuesta: historial crediticio simulado
+## Regla propuesta: historial crediticio simulado (DESCARTADA)
+
+> **Descartada en oct 2026** con Eduardo. Se usa en su lugar el score del
+> préstamo asignado (`score_credito_fuente`). Motivos en
+> `docs/fase4_decisiones_kpis.md`. La regla se conserva aquí como registro
+> de la primera versión.
 
 ```
 score_base                  = 850 - penalizacion_fraude - penalizacion_antiguedad
@@ -78,12 +83,11 @@ categoria_credito           = "Bueno" / "Regular" / "Malo" según rangos de scor
 
 ## Advertencia que debe quedar escrita en el código y en el catálogo de KPIs
 
-Estos valores **no representan el ingreso o historial real de ninguna
-persona**. Son una construcción documentada para poder ejercitar el
-pipeline completo (Bronze → Silver → Gold → KPIs de riesgo) dentro del
-marco de "problema de negocio simulado" del proyecto. Cualquier KPI que
-dependa de estos campos (`prob_impago`, `capacidad_ahorro`,
-`ratio_endeudamiento`) debe llevar esta misma nota.
+Estos valores **no representan el ingreso real de ninguna persona**. Son
+una construcción documentada para poder ejercitar el pipeline completo
+(Bronze → Silver → Gold → KPIs) dentro del marco de "problema de negocio
+simulado" del proyecto. Cualquier KPI que dependa del ingreso simulado (hoy:
+`capacidad_ahorro` y `flujo_efectivo_mensual`) debe llevar esta misma nota.
 
 ## Resultado sobre los datos reales (25 sep 2026)
 
@@ -96,16 +100,16 @@ Corrido sobre el Silver completo (924 clientes, 555,719 transacciones):
 - Score simulado: 906 de 924 clientes topan exactamente en 850 (908 en
   "Bueno"). La bonificación por número de transacciones (+40) casi siempre
   es mayor que la variación (±30), así que casi todos se pasan de 850 y el
-  límite los corta. **Pendiente de revisar con Eduardo** — así como está,
-  el score casi no distingue entre clientes.
+  límite los corta. Por esto (y porque penalizaba a las víctimas de
+  fraude) se descartó en oct 2026.
 
 Nota sobre el gasto mensual: la primera versión usaba `promedio por compra
 × 30`, que suponía una compra al día y subestimaba el gasto real ~3 veces.
 Se corrigió a gasto total / meses de actividad.
 
-## Siguiente paso
+## Uso actual del ingreso simulado (oct 2026)
 
-Ya se integró el dataset Loan Default con una llave sintética
-(`docs/fase4_llave_sintetica_prestamos.md`). Su ingreso y su score pueden
-reemplazar a los simulados de este documento; queda pendiente decidirlo con
-Eduardo (preguntas 2 y 3 de ese documento).
+`ingreso_mensual_simulado` se usa **solo** para `capacidad_ahorro` y
+`flujo_efectivo_mensual`. El DTI y el modelo de impago usan
+`ingreso_mensual_fuente`, el ingreso del préstamo asignado. Ver
+`docs/fase4_decisiones_kpis.md`.

@@ -11,15 +11,15 @@ Pasos encadenados (Fase 2 a Fase 4):
                             (y por lo tanto el DAG) se marca en rojo y Gold
                             NO se construye con datos malos.
   4. build_gold_perfil  -> perfil por cliente con el gasto real (Gold).
-  5. simular_ingreso_credito -> ingreso e historial crediticio SIMULADOS
-                            por cliente (Opcion A).
+  5. simular_ingreso_credito -> ingreso mensual SIMULADO por cliente
+                            (Opcion A). Solo se usa para capacidad de ahorro.
   6. ingest_loan_default -> lee el CSV de Loan Default (Kaggle) y lo
                             escribe en Bronze. Corre en paralelo a 1-3.
   7. clean_silver_loans -> limpia y valida los prestamos (Silver).
   8. asignar_prestamos  -> llave sintetica: le asigna a cada cliente un
                             prestamo "por parecido" (necesita 4 y 7).
   9. calcular_kpis      -> une 4, 5 y 8 y calcula capacidad_ahorro,
-                            flujo_efectivo_mensual y ratio_endeudamiento.
+                            flujo_efectivo_mensual y ratio_endeudamiento (DTI).
 """
 
 from datetime import datetime, timedelta
@@ -93,7 +93,7 @@ def build_gold_perfil(**context):
 
 
 def simular_ingreso_credito(**context):
-    """Genera el ingreso e historial crediticio SIMULADOS por cliente."""
+    """Genera el ingreso mensual SIMULADO por cliente."""
     resumen = run_simulacion_job(SILVER_PATH, GOLD_SIMULADO_PATH)
     print(
         f"Perfil financiero simulado: {resumen['clientes_procesados']:,} clientes "
@@ -135,12 +135,10 @@ def calcular_kpis(**context):
         SILVER_LOANS_PATH,
     )
     print(
-        f"KPIs Gold: {r['clientes']:,} clientes | capacidad de ahorro mediana: "
-        f"{r['capacidad_ahorro_mediana']:.1%} (ingreso simulado), "
-        f"{r['capacidad_ahorro_prestamo_mediana']:.1%} (ingreso del prestamo) | "
-        f"ratio de endeudamiento mediano: "
-        f"{r['ratio_endeudamiento_total_mediana']:.2f} (total), "
-        f"{r['ratio_endeudamiento_dti_mediana']:.2f} (DTI)"
+        f"KPIs Gold: {r['clientes']:,} clientes | capacidad de ahorro mediana "
+        f"{r['capacidad_ahorro_mediana']:.1%} ({r['clientes_ahorro_negativo']} "
+        f"negativos) | DTI mediano {r['ratio_endeudamiento_mediana']:.2f} "
+        f"({r['clientes_dti_mayor_a_1']} con DTI > 1)"
     )
 
 

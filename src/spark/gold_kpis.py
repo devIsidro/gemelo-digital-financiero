@@ -3,35 +3,38 @@ Job de PySpark: KPIs financieros por cliente en la Capa Gold (Fase 4).
 
 Une, un renglón por cliente (cc_num):
   - gold_perfil_cliente (gold_transactions.py): gasto REAL, sacado de Silver.
-  - perfil_financiero_simulado (simular_perfil_financiero.py): ingreso e
-    historial crediticio SIMULADOS con fórmulas (Opción A, decisión con
-    Eduardo del 11 sep 2026).
+  - perfil_financiero_simulado (simular_perfil_financiero.py): ingreso
+    mensual SIMULADO con fórmula (Opción A).
   - el préstamo asignado a cada cliente con la llave sintética
     (asignar_prestamos.py + Silver de Loan Default).
 
-y calcula los KPIs de config/kpis.yaml que ya se pueden calcular:
+Decisiones con Eduardo (oct 2026), detalle en docs/fase4_decisiones_kpis.md:
 
-  - capacidad_ahorro = (ingreso_mensual - gasto_mensual) / ingreso_mensual
-    Se calcula con las dos fuentes de ingreso, para decidir con Eduardo
-    cuál se queda:
-      capacidad_ahorro                  -> ingreso simulado con fórmula
-      capacidad_ahorro_ingreso_prestamo -> ingreso del préstamo asignado
+  - Dos ingresos, separados a propósito y con nombres distintos:
+      ingreso_mensual_simulado -> SOLO para capacidad_ahorro y
+                                  flujo_efectivo_mensual.
+      ingreso_mensual_fuente   -> ingreso del dataset Loan Default / 12.
+                                  Para el DTI y el modelo de impago.
+  - score_credito_fuente: el score que trae el préstamo asignado. Viene de la
+    fuente; NO lo calcula ningún modelo nuestro.
+  - ratio_endeudamiento (DTI), calculado por nosotros, todo mensual:
+      pago_mensual_prestamo / ingreso_mensual_fuente
+    El DTIRatio que trae el dataset NO se usa: el dataset no documenta cómo
+    se calculó y no se puede reproducir con sus propias columnas.
+
+KPIs:
+  - capacidad_ahorro = (ingreso_mensual_simulado - gasto) / ingreso_mensual_simulado
     Puede ser negativa: el cliente gasta con la tarjeta más de lo que gana.
-  - flujo_efectivo_mensual = ingreso_mensual (simulado) - gasto_mensual
-    Base del KPI flujo_efectivo_proyectado (falta la parte Monte Carlo).
-  - ratio_endeudamiento, en las dos formas posibles (pendiente de decidir
-    con Eduardo cuál se usa):
-      ratio_endeudamiento_total -> monto del préstamo / ingreso anual
-                                   (la fórmula del catálogo de KPIs)
-      ratio_endeudamiento_dti   -> DTIRatio del dataset: parte del ingreso
-                                   mensual que se va en pagos de deuda
+  - flujo_efectivo_mensual = ingreso_mensual_simulado - gasto
+    Base de flujo_efectivo_proyectado (falta la parte Monte Carlo).
+  - ratio_endeudamiento (DTI). Puede ser mayor a 1 (ver documento).
 
 prob_impago todavía NO se calcula: es un modelo que se entrena con las
 etiquetas de impago del dataset Loan Default (siguiente fase).
 
-Todos los montos están en USD. El gasto es real; el ingreso, el score y el
-préstamo son simulados o asignados, así que estos KPIs NO describen la
-situación real de ninguna persona.
+Todos los montos están en USD. El gasto es real; el ingreso simulado y el
+préstamo asignado no son de esa persona, así que estos KPIs NO describen la
+situación real de nadie.
 """
 
 import sys
@@ -50,24 +53,38 @@ def preparar_prestamo_asignado(
     """Une la asignación cliente -> préstamo con los datos del préstamo."""
     return asignacion_df.select("cc_num", "loan_id").join(
         loans_df.select(
-            "loan_id", "income_anual", "loan_amount", "credit_score", "dti_ratio"
+            "loan_id",
+            "income_anual",
+            "loan_amount",
+            "interest_rate",
+            "loan_term",
+            "credit_score",
         ),
         on="loan_id",
         how="inner",
     )
 
 
-def _capacidad_ahorro(ingreso: "F.Column", gasto: "F.Column") -> "F.Column":
-    # Los ingresos nunca son 0 (el simulado tiene mínimo de 8,000 USD y
-    # Silver de préstamos descarta ingresos <= 0); el when() es una
-    # protección adicional contra dividir entre cero.
-    return F.when(ingreso > 0, F.round((ingreso - gasto) / ingreso, 4))
+def pago_mensual(
+    monto: "F.Column", tasa_anual_pct: "F.Column", plazo_meses: "F.Column"
+) -> "F.Column":
+    """Pago mensual fijo de un crédito amortizable (fórmula estándar):
+
+        pago = monto * r / (1 - (1 + r) ** -n)
+
+    con r = tasa anual en % / 100 / 12 (tasa mensual) y n = plazo en meses.
+    Si la tasa fuera 0, el pago es monto / n (el dataset no trae tasas de 0,
+    pero se protege igual).
+    """
+    r = tasa_anual_pct / F.lit(100.0) / F.lit(12.0)
+    con_interes = monto * r / (F.lit(1.0) - F.pow(F.lit(1.0) + r, -plazo_meses))
+    return F.when(r > 0, con_interes).otherwise(monto / plazo_meses)
 
 
 def build_kpis_cliente(
     perfil_df: DataFrame, simulado_df: DataFrame, prestamo_df: DataFrame
 ) -> DataFrame:
-    """Une perfil real, perfil simulado y préstamo asignado; calcula KPIs.
+    """Une perfil real, ingreso simulado y préstamo asignado; calcula KPIs.
 
     prestamo_df: salida de preparar_prestamo_asignado().
     """
@@ -78,30 +95,35 @@ def build_kpis_cliente(
 
     gasto = F.col("gasto_promedio_mensual")
     ingreso_simulado = F.col("ingreso_mensual_simulado")
-    ingreso_prestamo = F.col("ingreso_mensual_prestamo")
-
-    df = df.withColumn(
-        "ingreso_mensual_prestamo", F.round(F.col("income_anual") / F.lit(12.0), 2)
+    ingreso_fuente = F.col("income_anual") / F.lit(12.0)
+    pago = pago_mensual(
+        F.col("loan_amount"), F.col("interest_rate"), F.col("loan_term")
     )
 
+    # El ingreso simulado nunca es menor a 8,000 USD y Silver de préstamos
+    # descarta ingresos <= 0; los when() son protección extra contra
+    # dividir entre cero.
     return df.select(
         *perfil_df.columns,
+        # --- Ingreso simulado (solo ahorro y flujo) ---
         "ingreso_mensual_simulado",
-        "score_credito_simulado",
-        "categoria_credito_simulada",
+        # --- Préstamo asignado (datos de la fuente, Loan Default) ---
         "loan_id",
-        "ingreso_mensual_prestamo",
-        F.col("credit_score").alias("score_credito_prestamo"),
-        F.col("loan_amount").alias("deuda_total_prestamo"),
+        F.round(ingreso_fuente, 2).alias("ingreso_mensual_fuente"),
+        F.col("credit_score").alias("score_credito_fuente"),
+        F.col("loan_amount").alias("monto_prestamo_fuente"),
+        F.col("interest_rate").alias("tasa_interes_anual_fuente"),
+        F.col("loan_term").alias("plazo_meses_fuente"),
+        F.round(pago, 2).alias("pago_mensual_prestamo"),
+        # --- KPIs ---
         F.round(ingreso_simulado - gasto, 2).alias("flujo_efectivo_mensual"),
-        _capacidad_ahorro(ingreso_simulado, gasto).alias("capacidad_ahorro"),
-        _capacidad_ahorro(ingreso_prestamo, gasto).alias(
-            "capacidad_ahorro_ingreso_prestamo"
+        F.when(
+            ingreso_simulado > 0,
+            F.round((ingreso_simulado - gasto) / ingreso_simulado, 4),
+        ).alias("capacidad_ahorro"),
+        F.when(ingreso_fuente > 0, F.round(pago / ingreso_fuente, 4)).alias(
+            "ratio_endeudamiento"
         ),
-        F.round(F.col("loan_amount") / F.col("income_anual"), 4).alias(
-            "ratio_endeudamiento_total"
-        ),
-        F.col("dti_ratio").alias("ratio_endeudamiento_dti"),
     )
 
 
@@ -153,17 +175,9 @@ def run_kpis_job(
             F.sum(F.when(F.col("capacidad_ahorro") < 0, 1).otherwise(0)).alias(
                 "negativos"
             ),
-            F.expr("percentile_approx(capacidad_ahorro_ingreso_prestamo, 0.5)").alias(
-                "mediana_prestamo"
-            ),
-            F.sum(
-                F.when(F.col("capacidad_ahorro_ingreso_prestamo") < 0, 1).otherwise(0)
-            ).alias("negativos_prestamo"),
-            F.expr("percentile_approx(ratio_endeudamiento_total, 0.5)").alias(
-                "ratio_total"
-            ),
-            F.expr("percentile_approx(ratio_endeudamiento_dti, 0.5)").alias(
-                "ratio_dti"
+            F.expr("percentile_approx(ratio_endeudamiento, 0.5)").alias("dti"),
+            F.sum(F.when(F.col("ratio_endeudamiento") > 1, 1).otherwise(0)).alias(
+                "dti_mayor_a_1"
             ),
         ).collect()[0]
 
@@ -171,10 +185,8 @@ def run_kpis_job(
             "clientes": clientes_kpis,
             "capacidad_ahorro_mediana": resumen["mediana"],
             "clientes_ahorro_negativo": resumen["negativos"],
-            "capacidad_ahorro_prestamo_mediana": resumen["mediana_prestamo"],
-            "clientes_ahorro_prestamo_negativo": resumen["negativos_prestamo"],
-            "ratio_endeudamiento_total_mediana": resumen["ratio_total"],
-            "ratio_endeudamiento_dti_mediana": resumen["ratio_dti"],
+            "ratio_endeudamiento_mediana": resumen["dti"],
+            "clientes_dti_mayor_a_1": resumen["dti_mayor_a_1"],
         }
     finally:
         spark.stop()
@@ -190,15 +202,11 @@ if __name__ == "__main__":
     r = run_kpis_job(perfil_arg, simulado_arg, salida_arg)
     print(f"KPIs Gold: {r['clientes']:,} clientes en {salida_arg}/")
     print(
-        f"  capacidad de ahorro (ingreso simulado): mediana "
-        f"{r['capacidad_ahorro_mediana']:.1%}, {r['clientes_ahorro_negativo']} negativos"
+        f"  capacidad de ahorro: mediana {r['capacidad_ahorro_mediana']:.1%}, "
+        f"{r['clientes_ahorro_negativo']} negativos"
     )
     print(
-        f"  capacidad de ahorro (ingreso del préstamo): mediana "
-        f"{r['capacidad_ahorro_prestamo_mediana']:.1%}, "
-        f"{r['clientes_ahorro_prestamo_negativo']} negativos"
-    )
-    print(
-        f"  ratio de endeudamiento: total {r['ratio_endeudamiento_total_mediana']:.2f} "
-        f"| DTI {r['ratio_endeudamiento_dti_mediana']:.2f} (medianas)"
+        f"  ratio de endeudamiento (DTI): mediana "
+        f"{r['ratio_endeudamiento_mediana']:.2f}, "
+        f"{r['clientes_dti_mayor_a_1']} clientes con DTI > 1"
     )
