@@ -25,12 +25,13 @@ kpis:
       columnas: [income, credit_history, loan_amount, default]
     capa: "Gold"
     nota_fase4: >
-      Pendiente (siguiente fase). El dataset Loan Default ya está en el pipeline
-      (Bronze/Silver) y cada cliente tiene un préstamo asignado con la llave
-      sintética (docs/fase4_llave_sintetica_prestamos.md). El modelo se
-      entrenará con las etiquetas de impago de los 255,347 préstamos y usará
-      ingreso_mensual_fuente y score_credito_fuente (nunca el ingreso
-      simulado), ver docs/fase4_decisiones_kpis.md.
+      Calculado en src/ml/modelo_impago.py (paso modelo_prob_impago del DAG,
+      tabla data/gold/prob_impago_cliente). Regresión logística en vez de
+      XGBoost/LightGBM: mismo AUC (~0.75) y es explicable. Entrenado con los
+      255,347 préstamos de Loan Default; usa ingreso_mensual_fuente, el DTI
+      calculado y las demás variables del préstamo, nunca el ingreso simulado.
+      Es la probabilidad del préstamo asignado con la llave sintética, no la
+      de un cliente real. Detalle en docs/fase5_modelo_impago.md.
 
   - id: flujo_efectivo_proyectado
     nombre: "Flujo de efectivo proyectado"

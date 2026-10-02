@@ -20,6 +20,8 @@ Pasos encadenados (Fase 2 a Fase 4):
                             prestamo "por parecido" (necesita 4 y 7).
   9. calcular_kpis      -> une 4, 5 y 8 y calcula capacidad_ahorro,
                             flujo_efectivo_mensual y ratio_endeudamiento (DTI).
+ 10. modelo_prob_impago -> entrena el modelo de impago con los prestamos y
+                            calcula prob_impago por cliente (necesita 7 y 8).
 """
 
 from datetime import datetime, timedelta
@@ -29,6 +31,7 @@ from airflow.operators.python import PythonOperator
 
 from src.bronze_ingest.ingest_fraud_transactions import ingest_csv_to_bronze
 from src.bronze_ingest.ingest_loan_default import ingest_loan_default_to_bronze
+from src.ml.modelo_impago import run_modelo_job
 from src.spark.asignar_prestamos import run_asignacion_job
 from src.spark.gold_kpis import run_kpis_job
 from src.spark.gold_transactions import run_gold_job
@@ -54,6 +57,8 @@ RAW_LOANS_CSV_PATH = "data/raw/Loan_default.csv"
 BRONZE_LOANS_PATH = "data/bronze/loan_default"
 SILVER_LOANS_PATH = "data/silver/loan_default"
 GOLD_ASIGNACION_PATH = "data/gold/asignacion_prestamos"
+GOLD_PROB_IMPAGO_PATH = "data/gold/prob_impago_cliente"
+METRICAS_MODELO_PATH = "data/gold/modelo_impago_metricas.json"
 
 
 def ingest_source(**context):
@@ -142,6 +147,21 @@ def calcular_kpis(**context):
     )
 
 
+def modelo_prob_impago(**context):
+    """Entrena el modelo de impago y calcula prob_impago por cliente."""
+    m = run_modelo_job(
+        SILVER_LOANS_PATH,
+        GOLD_ASIGNACION_PATH,
+        GOLD_PROB_IMPAGO_PATH,
+        METRICAS_MODELO_PATH,
+    )
+    print(
+        f"Modelo de impago: AUC {m['auc_prueba']} en prueba | "
+        f"{m['clientes']['total']} clientes, prob_impago mediana "
+        f"{m['clientes']['prob_impago_mediana']:.1%}"
+    )
+
+
 with DAG(
     dag_id="bronze_ingest",
     description="Pipeline Bronze -> Silver -> calidad -> Gold (transacciones y prestamos)",
@@ -149,7 +169,10 @@ with DAG(
     schedule="@daily",
     start_date=datetime(2026, 8, 10),
     catchup=False,
-    tags=["bronze", "silver", "calidad", "gold"],
+    # Una corrida a la vez: si coinciden la corrida diaria y una manual, las
+    # dos escribirían en las mismas carpetas al mismo tiempo.
+    max_active_runs=1,
+    tags=["bronze", "silver", "calidad", "gold", "ml"],
 ) as dag:
     ingest_task = PythonOperator(
         task_id="ingest_source",
@@ -204,3 +227,10 @@ with DAG(
     [gold_perfil_task, clean_loans_task] >> asignar_task
     # Los KPIs necesitan la simulacion y la asignacion
     [simular_task, asignar_task] >> kpis_task
+
+    modelo_task = PythonOperator(
+        task_id="modelo_prob_impago",
+        python_callable=modelo_prob_impago,
+    )
+    # El modelo necesita los prestamos limpios y la asignacion a clientes
+    [clean_loans_task, asignar_task] >> modelo_task

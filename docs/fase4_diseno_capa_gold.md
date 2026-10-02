@@ -75,13 +75,14 @@ también ingiere y limpia el dataset Loan Default en paralelo:
 | `data/gold/perfil_financiero_simulado` | `simular_perfil_financiero.py` | Ingreso SIMULADO con fórmula (Opción A) |
 | `data/gold/asignacion_prestamos` | `asignar_prestamos.py` | Llave sintética: un préstamo de Loan Default por cliente |
 | `data/gold/kpis_cliente` | `gold_kpis.py` | Todo lo anterior unido + KPIs |
+| `data/gold/prob_impago_cliente` | `src/ml/modelo_impago.py` | Probabilidad de impago por cliente (Fase 5) |
 
 | KPI | Estado |
 |---|---|
 | `capacidad_ahorro` | Calculado con el ingreso simulado |
 | `flujo_efectivo_proyectado` | Base calculada (`flujo_efectivo_mensual`); falta la parte Monte Carlo |
 | `ratio_endeudamiento` | Calculado: DTI con fórmula propia (pago mensual / ingreso mensual de la fuente) |
-| `prob_impago` | Pendiente: modelo entrenado con las etiquetas de Loan Default |
+| `prob_impago` | Calculado: regresión logística, AUC 0.75 (`docs/fase5_modelo_impago.md`) |
 
 Detalle de la llave sintética: `docs/fase4_llave_sintetica_prestamos.md`.
 Decisiones sobre score, ingreso y DTI, distribuciones y casos
@@ -91,6 +92,5 @@ representativos: `docs/fase4_decisiones_kpis.md`.
 
 1. Revisar con Eduardo las distribuciones y los casos representativos de
    `docs/fase4_decisiones_kpis.md` para cerrar la parte de KPIs.
-2. Entrenar el modelo de `prob_impago` con los 255,347 préstamos y
-   aplicarlo a cada cliente con las características de su préstamo
-   asignado.
+2. Revisar con Eduardo el modelo de impago (`docs/fase5_modelo_impago.md`)
+   y definir cortes de riesgo para el dashboard ejecutivo.
