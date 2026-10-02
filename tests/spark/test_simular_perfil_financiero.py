@@ -1,10 +1,9 @@
 """
-Pruebas del job de simulación de ingreso/crédito (Fase 4 / Opción A).
+Pruebas del job de simulación de ingreso (Fase 4 / Opción A).
 
 Verifican, con datos de ejemplo (no datos reales de BBVA ni de Kaggle), que
-las fórmulas documentadas en docs/fase4_datos_simulados_ingreso_credito.md
-se comportan como se espera: son reproducibles, respetan los límites
-definidos, y la categoría de crédito corresponde al score calculado.
+la fórmula documentada en docs/fase4_datos_simulados_ingreso_credito.md se
+comporta como se espera: es reproducible y respeta los límites definidos.
 """
 
 import pytest
@@ -13,8 +12,6 @@ from pyspark.sql import Row, SparkSession
 from src.spark.simular_perfil_financiero import (
     INGRESO_MAXIMO,
     INGRESO_MINIMO,
-    SCORE_MAXIMO,
-    SCORE_MINIMO,
     build_perfil_financiero_simulado,
 )
 
@@ -73,7 +70,7 @@ def _silver_df_de_ejemplo(spark):
 
 
 def test_es_reproducible(spark):
-    """Mismo cliente, misma corrida -> mismo ingreso y score siempre."""
+    """Mismo cliente, misma corrida -> mismo ingreso siempre."""
     silver_df = _silver_df_de_ejemplo(spark)
 
     resultado_1 = build_perfil_financiero_simulado(silver_df).toPandas()
@@ -85,50 +82,12 @@ def test_es_reproducible(spark):
     assert resultado_1.equals(resultado_2)
 
 
-def test_ingreso_y_score_dentro_de_los_limites_documentados(spark):
+def test_ingreso_dentro_de_los_limites_documentados(spark):
     silver_df = _silver_df_de_ejemplo(spark)
     resultado = build_perfil_financiero_simulado(silver_df).toPandas()
 
     assert (resultado["ingreso_mensual_simulado"] >= INGRESO_MINIMO).all()
     assert (resultado["ingreso_mensual_simulado"] <= INGRESO_MAXIMO).all()
-    assert (resultado["score_credito_simulado"] >= SCORE_MINIMO).all()
-    assert (resultado["score_credito_simulado"] <= SCORE_MAXIMO).all()
-
-
-def test_categoria_credito_coincide_con_el_score(spark):
-    silver_df = _silver_df_de_ejemplo(spark)
-    resultado = build_perfil_financiero_simulado(silver_df).toPandas()
-
-    for _, fila in resultado.iterrows():
-        score = fila["score_credito_simulado"]
-        categoria = fila["categoria_credito_simulada"]
-        if score >= 700:
-            assert categoria == "Bueno"
-        elif score >= 550:
-            assert categoria == "Regular"
-        else:
-            assert categoria == "Malo"
-
-
-def test_mas_fraude_penaliza_el_score(spark):
-    """Un cliente con 100% de transacciones fraudulentas debe terminar con
-    un score menor que uno con 0%, incluso con la variación pseudoaleatoria
-    (la penalización por fraude, hasta 300 pts, es mucho mayor que el rango
-    de variación, ±30 pts).
-    """
-    silver_df = _silver_df_de_ejemplo(spark)
-    resultado = (
-        build_perfil_financiero_simulado(silver_df).toPandas().set_index("cc_num")
-    )
-
-    score_sin_fraude = resultado.loc[
-        "cliente_ciudad_grande_sin_fraude", "score_credito_simulado"
-    ]
-    score_con_fraude = resultado.loc[
-        "cliente_ciudad_pequena_con_fraude", "score_credito_simulado"
-    ]
-
-    assert score_con_fraude < score_sin_fraude
 
 
 def test_ciudad_grande_simula_mayor_ingreso_base(spark):
@@ -155,10 +114,6 @@ def test_columnas_esperadas(spark):
     silver_df = _silver_df_de_ejemplo(spark)
     resultado = build_perfil_financiero_simulado(silver_df)
 
-    assert set(resultado.columns) == {
-        "cc_num",
-        "ingreso_mensual_simulado",
-        "score_credito_simulado",
-        "categoria_credito_simulada",
-    }
+    # El score simulado se descartó (oct 2026): ya no debe salir de aquí.
+    assert set(resultado.columns) == {"cc_num", "ingreso_mensual_simulado"}
     assert resultado.count() == 3
