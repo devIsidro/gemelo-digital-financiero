@@ -77,7 +77,8 @@ del cliente (tarjetas, otros créditos, hipoteca): el dataset no trae sus
 saldos ni pagos, solo `NumCreditLines` y `HasMortgage` como indicadores.
 
 **Denominador — `ingreso_mensual_fuente`:** `Income / 12`. `Income` es el
-ingreso anual bruto del titular del préstamo.
+ingreso anual del titular del préstamo. El dataset no especifica si es bruto
+o neto (antes o después de impuestos); se usa tal como viene.
 
 **Periodicidad:** numerador y denominador son **mensuales** y en USD.
 
