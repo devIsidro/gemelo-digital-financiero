@@ -98,3 +98,8 @@ kpis:
       dataset: "Logs y metadata de Apache Airflow"
       columnas: [dag_id, run_id, state, duration]
     capa: "Observabilidad (transversal)"
+    implementacion: >
+      Se calcula en el Panel Operativo (src/dashboard/datos.py,
+      resumen_corridas) leyendo las tablas dag_run y task_instance de la base
+      de Airflow. Solo cuentan las corridas terminadas (success o failed) de
+      las últimas 30 del DAG bronze_ingest.
