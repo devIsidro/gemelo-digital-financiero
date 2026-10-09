@@ -12,7 +12,7 @@ completo, de los datos crudos a los KPIs y el modelo de impago:
   4. Volumen de transacciones por día y por categoría.
   5. Salud de la capa Gold y del modelo de impago.
 
-Es distinto del dashboard ejecutivo de KPIs financieros (siguiente fase).
+Es distinto del Dashboard Ejecutivo (src/dashboard/ejecutivo.py), que es para negocio.
 
 Corre con: streamlit run src/dashboard/operativo.py
 """

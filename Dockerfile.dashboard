@@ -1,4 +1,5 @@
-# Imagen liviana para el Panel Operativo (Streamlit) — Fase 3 / Semana 12.
+# Imagen liviana para los dashboards en Streamlit: Panel Operativo (Fase 3)
+# y Dashboard Ejecutivo (Fase 4).
 # Diseño según la Guía de Estilo de BBVA (ver src/dashboard/estilo.py).
 FROM python:3.11-slim
 
@@ -13,7 +14,10 @@ COPY src /app/src
 
 EXPOSE 8501
 
-ENTRYPOINT ["streamlit", "run", "src/dashboard/operativo.py", \
+# Las opciones van en el ENTRYPOINT y el panel en CMD, así la misma imagen
+# sirve para los dos dashboards (docker-compose.yml cambia solo el CMD).
+ENTRYPOINT ["streamlit", "run", \
     "--server.address=0.0.0.0", "--server.port=8501", "--server.headless=true", \
     "--theme.base=light", "--theme.primaryColor=#001391", \
     "--theme.backgroundColor=#F7F8F8", "--browser.gatherUsageStats=false"]
+CMD ["src/dashboard/operativo.py"]

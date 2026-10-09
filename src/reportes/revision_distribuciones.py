@@ -23,7 +23,14 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from src.ml.explicacion import explicar  # noqa: E402
+from src.ml.explicacion import (  # noqa: E402
+    CORTES_RIESGO,
+    NIVELES,
+    RANGOS,
+    explicar,
+    nombre_variable,
+    preparar_prestamos,
+)
 
 # Colores de la Guía de Estilo de BBVA (los mismos de src/dashboard/estilo.py).
 ELECTRIC = "#001391"
@@ -35,46 +42,7 @@ GRIS_3 = "#DDE1E6"
 
 SALIDA = Path("docs/img/revision")
 
-# Cortes de riesgo que se proponen (para decidir con Eduardo).
-CORTES = [0.10, 0.30]
-BANDAS = ["Bajo (< 10%)", "Medio (10% – 30%)", "Alto (≥ 30%)"]
-
-NOMBRES = {
-    "age": "Edad",
-    "interest_rate": "Tasa de interés",
-    "months_employed": "Meses empleado",
-    "dti": "DTI",
-    "ingreso_mensual_fuente": "Ingreso (fuente)",
-    "loan_amount": "Monto del préstamo",
-    "has_cosigner": "Tiene aval",
-    "loan_term": "Plazo",
-    "has_dependents": "Tiene dependientes",
-    "credit_score": "Score de crédito",
-    "num_credit_lines": "Líneas de crédito",
-    "has_mortgage": "Tiene hipoteca",
-    "employment_type": "Empleo",
-    "marital_status": "Estado civil",
-    "loan_purpose": "Propósito",
-    "education": "Escolaridad",
-}
-VALORES = {
-    "Full-time": "tiempo completo",
-    "Part-time": "medio tiempo",
-    "Self-employed": "independiente",
-    "Unemployed": "desempleado",
-    "Married": "casado",
-    "Single": "soltero",
-    "Divorced": "divorciado",
-    "Home": "vivienda",
-    "Auto": "auto",
-    "Business": "negocio",
-    "Education": "educación",
-    "Other": "otro",
-    "High School": "preparatoria",
-    "Bachelor's": "licenciatura",
-    "Master's": "maestría",
-    "PhD": "doctorado",
-}
+BANDAS = [f"{n} ({r})" for n, r in zip(NIVELES, RANGOS)]
 
 
 def estilo():
@@ -122,17 +90,6 @@ def cargar(base: Path = Path("data")) -> tuple:
     return clientes, preparar_prestamos(loans), metricas
 
 
-def preparar_prestamos(loans: pd.DataFrame) -> pd.DataFrame:
-    """Mismas variables derivadas que modelo_impago.preparar_variables."""
-    loans = loans.copy()
-    r = loans["interest_rate"] / 100 / 12
-    n = loans["loan_term"]
-    pago = loans["loan_amount"] * r / (1 - (1 + r) ** (-n))
-    loans["ingreso_mensual_fuente"] = loans["income_anual"] / 12
-    loans["dti"] = pago / loans["ingreso_mensual_fuente"]
-    return loans
-
-
 def casos_representativos(c: pd.DataFrame) -> pd.DataFrame:
     """Los mismos criterios de docs/fase4_decisiones_kpis.md, más el cliente
     con mayor riesgo."""
@@ -153,29 +110,6 @@ def casos_representativos(c: pd.DataFrame) -> pd.DataFrame:
     casos = c.loc[list(filas.values())].copy()
     casos.index = list(filas.keys())
     return casos
-
-
-def nombre_variable(v: str, fila: pd.Series) -> str:
-    """Nombre legible con el valor del cliente, p. ej. 'Edad: 23'."""
-    if "=" in v:
-        col, val = v.split("=", 1)
-        propio = fila[col]
-        estado = "sí" if propio == val else "no"
-        return f"{NOMBRES[col]} {VALORES.get(val, val)}: {estado}"
-    valor = fila[v]
-    if v in ("has_cosigner", "has_dependents", "has_mortgage"):
-        texto = "sí" if valor == 1 else "no"
-    elif v == "interest_rate":
-        texto = f"{valor:.1f}%"
-    elif v == "dti":
-        texto = f"{valor:.2f}"
-    elif v in ("loan_amount", "ingreso_mensual_fuente"):
-        texto = f"{valor:,.0f} USD"
-    elif v == "loan_term":
-        texto = f"{valor:.0f} meses"
-    else:
-        texto = f"{valor:,.0f}"
-    return f"{NOMBRES[v]}: {texto}"
 
 
 # ---------------------------------------------------------------------------
@@ -352,7 +286,7 @@ def grafica_casos(casos: pd.DataFrame, aportes: pd.DataFrame, ruta: Path):
 
 
 def banda(prob: pd.Series) -> pd.Series:
-    return pd.cut(prob, [0, *CORTES, 1.0], right=False, labels=BANDAS)
+    return pd.cut(prob, [0, *CORTES_RIESGO, 1.0], right=False, labels=BANDAS)
 
 
 def tabla_bandas(clientes: pd.DataFrame, loans: pd.DataFrame, metricas: dict):
