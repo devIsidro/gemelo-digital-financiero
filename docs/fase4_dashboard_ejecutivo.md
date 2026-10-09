@@ -45,9 +45,9 @@ portafolio). Filtro por segmento de riesgo (todos, bajo, medio, alto):
 ## Decisiones de la v1
 
 - **Niveles de riesgo:** bajo < 10%, medio 10% – 30%, alto ≥ 30%. Es la
-  propuesta de `docs/fase5_revision_distribuciones.md`, pendiente de validar
-  con Eduardo. Se cambian en un solo lugar (`CORTES_RIESGO` en
-  `src/ml/explicacion.py`).
+  propuesta de `docs/fase5_revision_distribuciones.md`, aprobada por
+  Eduardo el 9 oct 2026. Si hubiera que cambiarlos, se cambian en un solo
+  lugar (`CORTES_RIESGO` en `src/ml/explicacion.py`).
 - **Clientes anónimos:** se muestran como "Cliente 0001", … (orden del
   número de tarjeta). El número de tarjeta nunca aparece.
 - **Ingresos vs gastos:** el gasto es real (Silver) y el ingreso es el
@@ -68,4 +68,5 @@ portafolio). Filtro por segmento de riesgo (todos, bajo, medio, alto):
 
 - Proyecciones del simulador Monte Carlo (semana 19).
 - Chat con el asistente de IA dentro del dashboard (semana 20).
-- Validar con Eduardo los cortes de riesgo y el contenido de la v1.
+
+La v1 se presentó a Eduardo el 9 oct 2026 y dio su visto bueno.
