@@ -149,6 +149,7 @@ def entrenar(loans_df: DataFrame) -> tuple:
         "auc_entrenamiento": round(evaluador.evaluate(pred_entrenamiento), 4),
         "tasa_impago_real_prueba": round(resumen["tasa_real"], 4),
         "tasa_impago_predicha_prueba": round(resumen["tasa_predicha"], 4),
+        "intercepto": round(modelo.stages[-1].intercept, 6),
         "coeficientes": coeficientes(modelo, prueba.limit(1)),
     }
     return modelo, metricas
@@ -170,8 +171,19 @@ def coeficientes(modelo: PipelineModel, ejemplo_df: DataFrame) -> list:
             # "education_oh_PhD" -> "education=PhD"
             nombres[a["idx"]] = a["name"].replace("_oh_", "=")
     valores = modelo.stages[-1].coefficients.toArray().tolist()
+    # Media y desviación con las que se estandarizó cada variable: con ellas
+    # y el intercepto se puede explicar la probabilidad de cualquier cliente
+    # sin volver a entrenar (ver src/reportes/revision_distribuciones.py).
+    escalador = modelo.stages[-2]
+    medias = escalador.mean.toArray().tolist()
+    desviaciones = escalador.std.toArray().tolist()
     pares = [
-        {"variable": nombres.get(i, f"variable_{i}"), "coeficiente": round(v, 4)}
+        {
+            "variable": nombres.get(i, f"variable_{i}"),
+            "coeficiente": round(v, 4),
+            "media": round(medias[i], 6),
+            "desviacion": round(desviaciones[i], 6),
+        }
         for i, v in enumerate(valores)
         # La columna para categorías desconocidas siempre vale 0 al entrenar,
         # así que su coeficiente es 0 y no aporta nada al reporte.

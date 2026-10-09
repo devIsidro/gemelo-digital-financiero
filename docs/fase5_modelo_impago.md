@@ -128,4 +128,5 @@ Casos representativos (los mismos de `docs/fase4_decisiones_kpis.md`):
 - Revisar con Eduardo las métricas, los coeficientes y si este nivel de
   explicabilidad es suficiente.
 - Definir cortes de riesgo (por ejemplo bajo / medio / alto) para el
-  dashboard ejecutivo.
+  dashboard ejecutivo. Propuesta (10% y 30%) en
+  `docs/fase5_revision_distribuciones.md`.
