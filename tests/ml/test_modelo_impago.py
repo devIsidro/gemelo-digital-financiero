@@ -3,8 +3,10 @@
 import random
 
 import pytest
+from pyspark.ml.functions import vector_to_array
 from pyspark.sql import Row, SparkSession
 
+from src.ml.explicacion import explicar
 from src.ml.modelo_impago import (
     VARIABLES_CATEGORICAS,
     VARIABLES_NUMERICAS,
@@ -107,6 +109,22 @@ def test_es_reproducible(spark):
     _, m2 = entrenar(loans)
     assert m1["auc_prueba"] == m2["auc_prueba"]
     assert m1["coeficientes"] == m2["coeficientes"]
+
+
+def test_la_explicacion_reproduce_la_probabilidad(spark, entrenado):
+    """Con el intercepto, coeficientes, medias y desviaciones del JSON se
+    obtiene la misma probabilidad que da Spark (lo usa el reporte de casos)."""
+    loans, modelo, metricas = entrenado
+    datos = preparar_variables(loans)
+    spark_prob = [
+        f["p"]
+        for f in modelo.transform(datos)
+        .select(vector_to_array("probability").getItem(1).alias("p"))
+        .collect()
+    ]
+    prob, aportes = explicar(datos.toPandas(), metricas)
+    assert list(prob) == pytest.approx(spark_prob, abs=0.002)
+    assert list(aportes.columns) == [c["variable"] for c in metricas["coeficientes"]]
 
 
 def test_prob_impago_por_cliente(spark, entrenado):

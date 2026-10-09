@@ -24,6 +24,7 @@ ollama>=0.3
 
 # Dashboards
 streamlit>=1.38
+matplotlib>=3.8   # gráficas de docs/ (src/reportes)
 
 # Testing y calidad de código
 pytest>=8.3

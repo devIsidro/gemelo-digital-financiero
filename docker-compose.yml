@@ -109,6 +109,19 @@ services:
     volumes:
       - ./data:/app/data
 
+  # Dashboard Ejecutivo (Fase 4): misma imagen, otro panel. Solo lee la capa
+  # Gold y Silver de ./data, no necesita la base de Airflow.
+  dashboard-ejecutivo:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    image: gemelo-digital-financiero/dashboard-ejecutivo:1.0
+    command: ["src/dashboard/ejecutivo.py"]
+    ports:
+      - "8502:8501"
+    volumes:
+      - ./data:/app/data
+
 volumes:
   postgres-data:
   minio-data:

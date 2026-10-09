@@ -187,6 +187,69 @@ div[class*="st-key-caja"] {{
 .gd-aviso.info {{ border-left-color: var(--serene); background: #F2F8FF; }}
 
 .gd-pie {{ font: 400 12px/1.5 'Lato', sans-serif; color: var(--g1); margin-top: 8px; }}
+.gd-nota {{ font: 400 12px/1.45 'Lato', sans-serif; color: var(--g1); margin: 10px 0 0 0; }}
+
+/* ---- Pestañas (dashboard ejecutivo) ---- */
+div[data-testid="stTabs"] [role="tablist"] {{
+  gap: 28px; border-bottom: 1px solid var(--g3);
+}}
+div[data-testid="stTabs"] button[role="tab"] {{ padding: 10px 2px; }}
+div[data-testid="stTabs"] button[role="tab"] p {{
+  font: 700 16px 'Lato', sans-serif !important; color: var(--g1);
+}}
+div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] p {{
+  color: var(--electric);
+}}
+div[data-testid="stTabs"] [data-baseweb="tab-highlight"] {{
+  background-color: var(--electric) !important; height: 3px;
+}}
+div[data-testid="stTabs"] [data-baseweb="tab-border"] {{ display: none; }}
+.gd-filtro {{ font: 700 13px 'Lato', sans-serif; color: var(--g1); }}
+
+/* ---- Tablas (cabecera en fondo neutro, según la guía) ---- */
+.gd-tabla {{ width: 100%; border-collapse: collapse; font: 400 13px 'Lato', sans-serif; }}
+.gd-tabla th {{
+  background: var(--g4); color: var(--g1); font-weight: 700; text-align: left;
+  padding: 9px 12px; font-size: 12px;
+}}
+.gd-tabla th:first-child {{ border-radius: 8px 0 0 8px; }}
+.gd-tabla th:last-child {{ border-radius: 0 8px 8px 0; }}
+.gd-tabla td {{
+  padding: 10px 12px; border-bottom: 1px solid var(--g4); color: var(--midnight);
+}}
+.gd-tabla td.num, .gd-tabla th.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
+.gd-tabla tr:last-child td {{ border-bottom: none; }}
+.gd-tabla .gd-cliente {{ font-weight: 700; }}
+
+/* ---- Niveles de riesgo ---- */
+.gd-nivel {{
+  border: 1px solid var(--g3); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
+}}
+.gd-nivel.activo {{ border: 2px solid var(--electric); padding: 11px 13px; }}
+.gd-nivel-top {{ display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }}
+.gd-nivel-cifra {{
+  font: 700 24px 'Source Serif 4', Georgia, serif; color: var(--midnight);
+}}
+.gd-nivel-cifra small {{ font: 400 13px 'Lato', sans-serif; color: var(--g1); }}
+.gd-barra {{ height: 8px; background: var(--g4); border-radius: 4px; margin: 8px 0 8px 0; }}
+.gd-barra span {{ display: block; height: 8px; border-radius: 4px; }}
+.gd-nivel-det {{ font: 400 12px/1.5 'Lato', sans-serif; color: var(--g1); }}
+.gd-nivel-det b {{ color: var(--midnight); }}
+
+/* ---- Datos en renglones (perfil del cliente) ---- */
+.gd-dato {{
+  display: flex; justify-content: space-between; gap: 12px; padding: 8px 0;
+  border-bottom: 1px solid var(--g4); font: 400 14px 'Lato', sans-serif;
+}}
+.gd-dato:last-of-type {{ border-bottom: none; }}
+.gd-dato span:first-child {{ color: var(--g1); }}
+.gd-dato span:last-child {{ color: var(--midnight); font-weight: 700; text-align: right; }}
+.gd-cliente-nombre {{
+  font: 700 32px/1.15 'Source Serif 4', Georgia, serif; color: var(--midnight); margin: 2px 0 6px 0;
+}}
+.gd-proximo {{ display: flex; gap: 12px; align-items: flex-start; }}
+.gd-proximo b {{ font: 700 14px 'Lato', sans-serif; color: var(--midnight); }}
+.gd-proximo p {{ font: 400 13px/1.45 'Lato', sans-serif; color: var(--g1); margin: 2px 0 0 0; }}
 </style>
 """
 
@@ -211,6 +274,17 @@ _TRAZOS = {
     "modelo": '<path d="M4 18.5l5-6 4 3.5 7-9"/><path d="M15 7h5v5"/>',
     "prestamo": '<rect x="2.5" y="5" width="19" height="12.5" rx="2"/>'
     '<path d="M2.5 9.5h19"/><path d="M6 14h4"/>',
+    "ahorro": '<path d="M4 11.5c0-3.6 3.4-6 7.5-6 2.2 0 4.2.7 5.5 1.9l2.5-.9-.6 2.9'
+    "c.7.9 1.1 1.9 1.1 3.1 0 1.9-1 3.5-2.6 4.5v1.5h-2.5v-.8a9.6 9.6 0 0 1-3.4 0v.8H9"
+    'v-1.6C6 16.1 4 14 4 11.5z"/><path d="M10 8.6h3"/>',
+    "calendario": '<rect x="3" y="4.5" width="18" height="15" rx="2"/>'
+    '<path d="M3 9h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13h2M11.5 13h2M15.5 13h1"/>',
+    "carrito": '<path d="M2.5 3.5h2.6l2.1 10.2h10.6l2-7.2H6.1"/>'
+    '<circle cx="9" cy="17.6" r="1.3"/><circle cx="16.4" cy="17.6" r="1.3"/>',
+    "persona": '<circle cx="12" cy="7" r="3.6"/>'
+    '<path d="M4.8 19c.8-3.6 3.7-5.8 7.2-5.8s6.4 2.2 7.2 5.8"/>',
+    "ia": '<path d="M4 5.5h16v10H9.5L5.5 19v-3.5H4z"/>'
+    '<path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01"/>',
 }
 
 

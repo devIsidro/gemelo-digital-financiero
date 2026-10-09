@@ -139,4 +139,5 @@ eso no se mezclan.
 ## Pendiente
 
 Revisión con Eduardo de esta distribución y de los casos antes de cerrar
-la parte de KPIs.
+la parte de KPIs. Material preparado en
+`docs/fase5_revision_distribuciones.md` (gráficas y explicación por caso).
