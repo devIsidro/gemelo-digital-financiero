@@ -1,6 +1,6 @@
 # Fase 5 — Revisión de distribuciones y casos representativos
 
-Eduardo (BBVA) pidió revisar las distribuciones de las variables y algunos
+Nuestro líder mentor Eduardo (BBVA) pidió revisar las distribuciones de las variables y algunos
 casos representativos antes de cerrar la parte de ingreso, score, DTI y
 modelo de impago. Este documento junta esa revisión.
 
