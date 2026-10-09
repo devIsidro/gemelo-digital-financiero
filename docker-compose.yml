@@ -101,6 +101,11 @@ services:
     image: gemelo-digital-financiero/dashboard:1.0
     ports:
       - "8501:8501"
+    environment:
+      # El panel lee el historial de corridas del DAG en la base de Airflow.
+      AIRFLOW_DB_URL: postgresql://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}
+    depends_on:
+      - postgres
     volumes:
       - ./data:/app/data
 
