@@ -103,10 +103,11 @@ La suma de los aportes reproduce exactamente la `prob_impago` del modelo
 (diferencia máxima de 0.0001), y hay una prueba automática que lo verifica
 (`tests/ml/test_modelo_impago.py`).
 
-## 4. Propuesta: niveles de riesgo
+## 4. Niveles de riesgo
 
 Para el dashboard ejecutivo hace falta agrupar la probabilidad en niveles.
-Se proponen cortes redondos en 10% y 30%:
+Se usan cortes redondos en 10% y 30% (aprobados el 9 oct 2026, ver
+sección 5):
 
 | Nivel             | Clientes | % de clientes | Préstamos del dataset en ese nivel | Impago real de esos préstamos |
 | ----------------- | -------- | ------------- | ---------------------------------- | ----------------------------- |
@@ -120,12 +121,15 @@ real se midió sobre los 255,347 préstamos del dataset; el 80% se usó para
 entrenar, pero el modelo da casi el mismo AUC en entrenamiento y en prueba
 (0.753 y 0.749), así que no está inflado.
 
-## 5. Para decidir con Líder Eduardo
+## 5. Decisiones con Líder Eduardo (reunión del 9 oct 2026)
 
-1. ¿Con esta revisión se da por cerrada la parte de ingreso, score y DTI?
-2. ¿Están bien los cortes de 10% y 30%, o BBVA maneja otros?
-3. ¿Este nivel de explicación por cliente es suficiente? ¿Lo mostramos en
-   el dashboard ejecutivo?
+Se presentó esta revisión junto con el Panel Operativo y el Dashboard
+Ejecutivo v1. Eduardo dio su visto bueno a todo:
+
+1. **Ingreso, score y DTI:** se da por cerrada esta parte con la revisión.
+2. **Niveles de riesgo:** se quedan los cortes de 10% y 30%.
+3. **Explicación por cliente:** es suficiente y se muestra en el dashboard
+   ejecutivo (alertas tempranas y perfil 360).
 
 ## Cómo regenerar las gráficas
 

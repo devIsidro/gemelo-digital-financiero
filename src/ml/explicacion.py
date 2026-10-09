@@ -19,8 +19,8 @@ ejecutivo: los niveles de riesgo y los nombres en español de las variables.
 import numpy as np
 import pandas as pd
 
-# Niveles de riesgo según prob_impago. PROPUESTA pendiente de aprobar con
-# Eduardo (docs/fase5_revision_distribuciones.md, sección 4): si se cambian,
+# Niveles de riesgo según prob_impago, aprobados con Eduardo (BBVA) el 9 oct
+# 2026 (docs/fase5_revision_distribuciones.md, sección 5). Si se cambian,
 # basta con cambiar estos cortes y se actualizan el dashboard y el reporte.
 CORTES_RIESGO = (0.10, 0.30)
 NIVELES = ("Bajo", "Medio", "Alto")

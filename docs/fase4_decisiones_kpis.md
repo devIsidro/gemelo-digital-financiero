@@ -136,8 +136,8 @@ Montos en USD. Se ve la separación entre los dos ingresos: el caso E ahorra
 su ingreso de la fuente. Son dos lecturas distintas del mismo cliente, por
 eso no se mezclan.
 
-## Pendiente
+## Estado
 
-Revisión con Eduardo de esta distribución y de los casos antes de cerrar
-la parte de KPIs. Material preparado en
-`docs/fase5_revision_distribuciones.md` (gráficas y explicación por caso).
+Cerrado. La distribución y los casos se revisaron con Eduardo el 9 oct
+2026 y dio su visto bueno (`docs/fase5_revision_distribuciones.md`,
+sección 5).

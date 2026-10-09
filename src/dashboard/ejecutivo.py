@@ -434,9 +434,9 @@ with tab_portafolio:
             html("".join(filas))
             html(
                 '<p class="gd-nota">Cortes en '
-                f"{CORTES_RIESGO[0]:.0%} y {CORTES_RIESGO[1]:.0%}: propuesta pendiente de "
-                "validar con BBVA. El impago real se mide en los 255 mil préstamos del "
-                "dataset Loan Default.</p>"
+                f"{CORTES_RIESGO[0]:.0%} y {CORTES_RIESGO[1]:.0%}, validados con BBVA. "
+                "El impago real se mide en los 255 mil préstamos del dataset Loan "
+                "Default.</p>"
             )
     with c2:
         with st.container(key="caja_ivg"):

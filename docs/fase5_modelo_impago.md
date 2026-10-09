@@ -123,10 +123,10 @@ Casos representativos (los mismos de `docs/fase4_decisiones_kpis.md`):
   Conviene presentarlos como dos lecturas distintas del cliente.
 - **Señal moderada** (AUC 0.75) por la naturaleza sintética del dataset.
 
-## Pendiente
+## Estado
 
-- Revisar con Eduardo las métricas, los coeficientes y si este nivel de
-  explicabilidad es suficiente.
-- Definir cortes de riesgo (por ejemplo bajo / medio / alto) para el
-  dashboard ejecutivo. Propuesta (10% y 30%) en
-  `docs/fase5_revision_distribuciones.md`.
+- Métricas, coeficientes y nivel de explicabilidad revisados con Eduardo
+  el 9 oct 2026: visto bueno.
+- Niveles de riesgo aprobados: bajo < 10%, medio 10% – 30%, alto ≥ 30%
+  (`docs/fase5_revision_distribuciones.md`). Se usan en el dashboard
+  ejecutivo.
