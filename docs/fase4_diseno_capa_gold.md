@@ -76,11 +76,12 @@ también ingiere y limpia el dataset Loan Default en paralelo:
 | `data/gold/asignacion_prestamos` | `asignar_prestamos.py` | Llave sintética: un préstamo de Loan Default por cliente |
 | `data/gold/kpis_cliente` | `gold_kpis.py` | Todo lo anterior unido + KPIs |
 | `data/gold/prob_impago_cliente` | `src/ml/modelo_impago.py` | Probabilidad de impago por cliente (Fase 5) |
+| `data/gold/simulacion_*.parquet` | `src/ml/simulador.py` | Simulación Monte Carlo a 36 meses en 4 escenarios (Fase 5) |
 
 | KPI | Estado |
 |---|---|
 | `capacidad_ahorro` | Calculado con el ingreso simulado |
-| `flujo_efectivo_proyectado` | Base calculada (`flujo_efectivo_mensual`); falta la parte Monte Carlo |
+| `flujo_efectivo_proyectado` | Calculado: simulador Monte Carlo con bandas de confianza (`docs/fase5_simulador_monte_carlo.md`) |
 | `ratio_endeudamiento` | Calculado: DTI con fórmula propia (pago mensual / ingreso mensual de la fuente) |
 | `prob_impago` | Calculado: regresión logística, AUC 0.75 (`docs/fase5_modelo_impago.md`) |
 
@@ -88,9 +89,13 @@ Detalle de la llave sintética: `docs/fase4_llave_sintetica_prestamos.md`.
 Decisiones sobre score, ingreso y DTI, distribuciones y casos
 representativos: `docs/fase4_decisiones_kpis.md`.
 
-## Siguiente paso
+## Estado
 
-1. Revisar con Eduardo las distribuciones y los casos representativos de
-   `docs/fase4_decisiones_kpis.md` para cerrar la parte de KPIs.
-2. Revisar con Eduardo el modelo de impago (`docs/fase5_modelo_impago.md`)
-   y definir cortes de riesgo para el dashboard ejecutivo.
+La capa Gold está cerrada. Las distribuciones, los casos representativos,
+el modelo de impago y los cortes de riesgo se revisaron con Eduardo el
+9 oct 2026 y dio su visto bueno (`docs/fase5_revision_distribuciones.md`).
+Los KPIs de Gold se muestran en el dashboard ejecutivo
+(`docs/fase4_dashboard_ejecutivo.md`).
+
+El simulador Monte Carlo (Fase 5) ya completa `flujo_efectivo_proyectado`
+(`docs/fase5_simulador_monte_carlo.md`).

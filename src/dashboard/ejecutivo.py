@@ -11,12 +11,14 @@ proyecto). Lee solo de la capa Gold (y de Silver para el histórico):
   Perfil 360   Un cliente: sus KPIs, su histórico, en qué gasta, su préstamo
                y por qué el modelo le da esa probabilidad de impago.
 
-Pendiente para siguientes fases (están en el plan): proyecciones del
-simulador Monte Carlo (semana 19) y chat con el asistente de IA (semana 20).
+El simulador Monte Carlo (src/ml/simulador.py) aparece en las dos vistas:
+impacto de cada escenario en el portafolio y simulación interactiva de un
+cliente. Pendiente para la siguiente fase: chat con el asistente de IA.
 
 Corre con: streamlit run src/dashboard/ejecutivo.py
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -29,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from src.dashboard import datos  # noqa: E402
 from src.dashboard import datos_ejecutivo as de  # noqa: E402
 from src.dashboard import estilo as e  # noqa: E402
+from src.ml import simulador as sm  # noqa: E402
 from src.ml.explicacion import CORTES_RIESGO, NIVELES, RANGOS  # noqa: E402
 
 RUTAS = datos.Rutas(Path("data"))
@@ -79,6 +82,50 @@ def agregados_cliente(cc_num: int):
     return de.ingresos_vs_gastos(tx, uno), de.consumo_por_categoria(tx_uno), tx_uno
 
 
+@st.cache_resource(ttl=600, show_spinner=False)
+def cargar_sim():
+    return de.cargar_simulacion(RUTAS)
+
+
+@st.cache_data(ttl=600, show_spinner="Simulando 1,000 futuros posibles…")
+def simular(
+    cc_num, ingreso, gasto_base, cv, escenario, supuestos: tuple, parametros: tuple
+):
+    """Corre el motor para un cliente (escenario elegido y base para comparar)."""
+    sup = sm.Supuestos(**dict(supuestos))
+    p = dict(parametros)
+    par = sm.ParametrosEscenarios(
+        credito_hipotecario=sm.CreditoHipotecario(**dict(p["credito_hipotecario"])),
+        cambio_empleo=sm.CambioEmpleo(**dict(p["cambio_empleo"])),
+        negocio=sm.Negocio(**dict(p["negocio"])),
+    )
+    sim = sm.simular_cliente(
+        ingreso,
+        gasto_base,
+        cv,
+        escenario,
+        sup,
+        par,
+        sm.semilla_cliente(cc_num, escenario, sup.semilla),
+    )
+    base = sm.simular_cliente(
+        ingreso,
+        gasto_base,
+        cv,
+        "base",
+        sup,
+        par,
+        sm.semilla_cliente(cc_num, "base", sup.semilla),
+    )
+    return (
+        sm.resumir(sim, gasto_base, sup),
+        sm.bandas(sim),
+        sim["info"],
+        sm.resumir(base, gasto_base, sup),
+        sm.bandas(base),
+    )
+
+
 def html(contenido: str):
     st.markdown(contenido, unsafe_allow_html=True)
 
@@ -94,11 +141,23 @@ def con_tema(chart):
 
 
 def dinero(x) -> str:
-    return "—" if x is None or pd.isna(x) else f"${x:,.0f}"
+    if x is None or pd.isna(x):
+        return "—"
+    return f"−${-x:,.0f}" if x < 0 else f"${x:,.0f}"
+
+
+def no_deseleccionar(key: str, defecto: str):
+    """Los botones segmentados se desmarcan si se vuelve a picar la opción
+    activa; esto la deja marcada."""
+    if st.session_state.get(key) is None:
+        st.session_state[key] = st.session_state.get(f"{key}_previo", defecto)
+    st.session_state[f"{key}_previo"] = st.session_state[key]
 
 
 def pct(x, dec=0) -> str:
-    return "—" if x is None or pd.isna(x) else f"{x * 100:.{dec}f}%"
+    if x is None or pd.isna(x):
+        return "—"
+    return f"−{-x * 100:.{dec}f}%" if x < 0 else f"{x * 100:.{dec}f}%"
 
 
 def chip_nivel(nivel: str, extra: str = "") -> str:
@@ -271,6 +330,87 @@ def grafica_factores(f: pd.DataFrame):
     )
 
 
+def grafica_abanico(b: pd.DataFrame, base: pd.DataFrame = None):
+    """Bandas de confianza del ahorro acumulado (abanico) y la mediana."""
+    d = b.copy()
+    capas = [
+        alt.Chart(d)
+        .mark_area(color=e.SERENE, opacity=0.45)
+        .encode(
+            x=alt.X(
+                "mes:Q",
+                title="Meses desde hoy",
+                scale=alt.Scale(domain=[1, int(d["mes"].max())], nice=False),
+                axis=alt.Axis(values=list(range(0, int(d["mes"].max()) + 1, 6))),
+            ),
+            y=alt.Y("p5:Q", title="Ahorro acumulado (USD)", axis=alt.Axis(format="~s")),
+            y2="p95:Q",
+            tooltip=[
+                alt.Tooltip("mes:Q", title="Mes"),
+                alt.Tooltip("p5:Q", title="Escenario malo (P5)", format=",.0f"),
+                alt.Tooltip("p50:Q", title="Mediana", format=",.0f"),
+                alt.Tooltip("p95:Q", title="Escenario bueno (P95)", format=",.0f"),
+            ],
+        ),
+        alt.Chart(d)
+        .mark_area(color=e.SERENE, opacity=0.75)
+        .encode(x="mes:Q", y="p25:Q", y2="p75:Q"),
+        alt.Chart(d)
+        .mark_line(color=e.ELECTRIC, strokeWidth=2.5)
+        .encode(x="mes:Q", y="p50:Q"),
+    ]
+    if base is not None:
+        capas.append(
+            alt.Chart(base)
+            .mark_line(color=e.GRIS_1, strokeDash=[5, 4], strokeWidth=1.6)
+            .encode(x="mes:Q", y="p50:Q")
+        )
+    if d["p5"].min() < 0:
+        capas.append(
+            alt.Chart(pd.DataFrame({"y": [0]}))
+            .mark_rule(color=e.MANDARIN, strokeWidth=1.5)
+            .encode(y="y:Q")
+        )
+    st.altair_chart(
+        con_tema(alt.layer(*capas).properties(height=320)), width="stretch", theme=None
+    )
+
+
+def grafica_escenarios(t: pd.DataFrame):
+    d = t.reset_index()
+    base = alt.Chart(d).encode(
+        y=alt.Y("nombre:N", sort=list(d["nombre"]), title=None),
+        x=alt.X(
+            "en_riesgo:Q",
+            title="% de clientes en riesgo de números rojos",
+            axis=alt.Axis(format=".0%"),
+            scale=alt.Scale(
+                domain=[0, math.ceil(float(d["en_riesgo"].max()) * 13) / 10 or 0.1]
+            ),
+        ),
+    )
+    barras = base.mark_bar(
+        cornerRadiusTopRight=4, cornerRadiusBottomRight=4, size=22
+    ).encode(
+        color=alt.condition(
+            alt.datum.escenario == "base", alt.value(e.SERENE), alt.value(e.ELECTRIC)
+        ),
+        tooltip=[
+            alt.Tooltip("nombre:N", title="Escenario"),
+            alt.Tooltip("en_riesgo:Q", title="En riesgo", format=".1%"),
+            alt.Tooltip(
+                "ahorro_12m:Q", title="Ahorro mediano a 12 meses", format=",.0f"
+            ),
+        ],
+    )
+    texto = base.mark_text(
+        align="left", dx=6, font=e.FUENTE_GRAFICAS, fontSize=12, color=e.GRIS_1
+    ).encode(text=alt.Text("en_riesgo:Q", format=".1%"))
+    st.altair_chart(
+        con_tema((barras + texto).properties(height=190)), width="stretch", theme=None
+    )
+
+
 # ---------------------------------------------------------------------------
 # Datos
 # ---------------------------------------------------------------------------
@@ -336,6 +476,8 @@ with tab_portafolio:
             default="Todos",
             key="segmento",
             label_visibility="collapsed",
+            on_change=no_deseleccionar,
+            args=("segmento", "Todos"),
         )
     segmento = segmento or "Todos"
     sub = clientes if segmento == "Todos" else clientes[clientes["nivel"] == segmento]
@@ -525,30 +667,59 @@ with tab_portafolio:
 
     st.write("")
 
-    # ---- Lo que sigue ----
-    with st.container(key="caja_proximo"):
-        html(
-            e.titulo_caja(
-                "Lo que sigue en este dashboard",
-                "Partes del módulo predictivo que llegan en las siguientes fases del plan.",
-                "modelo",
-            )
-        )
-        p1, p2 = st.columns(2)
-        with p1:
+    # ---- Simulador: escenarios en el portafolio ----
+    simulacion = cargar_sim()
+    with st.container(key="caja_esc"):
+        if simulacion is None:
             html(
-                f'<div class="gd-proximo">{e.icono("barras", claro=True)}<div>'
-                "<b>Simulador Monte Carlo · semana 19</b>"
-                "<p>Proyección del flujo de efectivo de cada cliente a 1, 3 y 6 meses, "
-                "con escenarios como contratar un crédito o cambiar de empleo.</p>"
-                "</div></div>"
+                e.titulo_caja(
+                    "Escenarios a futuro (simulador Monte Carlo)", "", "modelo"
+                )
             )
-        with p2:
             html(
-                f'<div class="gd-proximo">{e.icono("ia", claro=True)}<div>'
-                "<b>Asistente de IA · semana 20</b>"
-                "<p>Chat dentro del dashboard para preguntar por el perfil de un "
-                "cliente en lenguaje natural.</p></div></div>"
+                e.aviso(
+                    "Para ver los escenarios, vuelve a correr el DAG: el paso "
+                    "<code>simulador_monte_carlo</code> los calcula.",
+                    info=True,
+                )
+            )
+        else:
+            _, resumen_sim, _ = simulacion
+            esc = de.escenarios_portafolio(resumen_sim, sub)
+            b0 = esc.loc["base", "en_riesgo"]
+            b1 = esc.loc["credito_hipotecario", "en_riesgo"]
+            desc = (
+                f"1,000 futuros posibles por cliente a 36 meses. Sin cambios, el {b0:.0%} de "
+                f"{etiqueta_seg} quedaría en riesgo de números rojos; con un crédito "
+                f"hipotecario de 3 años de ingreso, el {b1:.0%}."
+            )
+            html(
+                e.titulo_caja(
+                    "Escenarios a futuro (simulador Monte Carlo)", desc, "modelo"
+                )
+            )
+            g1, g2 = st.columns([6, 6], gap="medium")
+            with g1:
+                grafica_escenarios(esc)
+            with g2:
+                filas = "".join(
+                    f'<tr><td class="gd-cliente">{r.nombre}</td>'
+                    f'<td class="num">{r.en_riesgo:.1%}</td>'
+                    f'<td class="num">{dinero(r.ahorro_12m)}</td>'
+                    f'<td class="num">{pct(r.capacidad_12m)}</td></tr>'
+                    for r in esc.itertuples()
+                )
+                html(
+                    '<table class="gd-tabla"><thead><tr><th>Escenario</th>'
+                    '<th class="num">En riesgo</th><th class="num">Ahorro a 12 meses</th>'
+                    '<th class="num">Capacidad de ahorro, año 1</th></tr></thead>'
+                    f"<tbody>{filas}</tbody></table>"
+                )
+            html(
+                '<p class="gd-nota">«En riesgo» = en al menos 10% de sus futuros posibles, su '
+                "ahorro acumulado baja de cero. Medianas por cliente. Prueba cada escenario "
+                "con un cliente en la pestaña «Perfil 360». Siguiente fase: el asistente de "
+                "IA, para preguntar por un cliente en lenguaje natural.</p>"
             )
 
 # ===========================================================================
@@ -748,6 +919,209 @@ with tab_cliente:
                         "posible.",
                         info=True,
                     )
+                )
+
+    st.write("")
+
+    # ---- Simulador de escenarios ----
+    with st.container(key="caja_cli_sim"):
+        html(
+            e.titulo_caja(
+                "Simulador de escenarios (Monte Carlo)",
+                "1,000 futuros posibles de su dinero en los próximos 36 meses, con su gasto "
+                "real y su variación, la inflación y el riesgo de perder su ingreso.",
+                "modelo",
+            )
+        )
+        simulacion = cargar_sim()
+        fila_sim = (
+            None
+            if simulacion is None
+            else simulacion[0][simulacion[0]["cc_num"] == c["cc_num"]]
+        )
+        if fila_sim is None or fila_sim.empty:
+            html(
+                e.aviso(
+                    "Para usar el simulador, vuelve a correr el DAG: el paso "
+                    "<code>simulador_monte_carlo</code> prepara los datos de cada cliente.",
+                    info=True,
+                )
+            )
+        else:
+            params_sim = simulacion[2]
+            campos = sm.Supuestos.__dataclass_fields__
+            sup_dict = {
+                k: v for k, v in params_sim.get("supuestos", {}).items() if k in campos
+            }
+            nombres = {v: k for k, v in sm.NOMBRES_ESCENARIOS.items()}
+            elegido_esc = (
+                st.segmented_control(
+                    "Escenario",
+                    list(sm.NOMBRES_ESCENARIOS.values()),
+                    default="Crédito hipotecario",
+                    key="esc_sim",
+                    label_visibility="collapsed",
+                    on_change=no_deseleccionar,
+                    args=("esc_sim", "Crédito hipotecario"),
+                )
+                or "Sin cambios"
+            )
+            esc = nombres[elegido_esc]
+            ch, ce, ng = sm.CreditoHipotecario(), sm.CambioEmpleo(), sm.Negocio()
+            if esc == "credito_hipotecario":
+                k1, k2, k3 = st.columns(3)
+                ch = sm.CreditoHipotecario(
+                    anos_de_ingreso=k1.slider(
+                        "Monto (años de ingreso)", 1.0, 5.0, 3.0, 0.5
+                    ),
+                    tasa_anual=k2.slider(
+                        "Tasa de interés anual (%)", 5.0, 16.0, 10.0, 0.5
+                    )
+                    / 100,
+                    plazo_meses=k3.slider("Plazo (años)", 5, 30, 20, 5) * 12,
+                )
+            elif esc == "cambio_empleo":
+                k1, k2, k3 = st.columns(3)
+                lo, hi = k2.slider("Cambio de sueldo (%)", -30, 50, (-10, 25), 5)
+                ce = sm.CambioEmpleo(
+                    mes_cambio=k1.slider("Mes del cambio", 1, 24, 6),
+                    cambio_salario_min=lo / 100,
+                    cambio_salario_max=hi / 100,
+                    meses_sin_ingreso_promedio=k3.slider(
+                        "Meses sin ingreso (promedio)", 0.0, 4.0, 1.0, 0.5
+                    ),
+                )
+            elif esc == "negocio":
+                k1, k2, k3 = st.columns(3)
+                ng = sm.Negocio(
+                    inversion_meses_ingreso=k1.slider(
+                        "Inversión (meses de ingreso)", 1, 24, 6
+                    ),
+                    margen_medio=k2.slider(
+                        "Utilidad esperada (% del ingreso)", -10, 60, 25, 5
+                    )
+                    / 100,
+                    prob_cierre_24m=k3.slider(
+                        "Probabilidad de cerrar en 2 años (%)", 0, 60, 30, 5
+                    )
+                    / 100,
+                )
+            ins = fila_sim.iloc[0]
+            congelar = lambda d: tuple(sorted(d.items()))  # noqa: E731
+            res, bnd, info, res_base, bnd_base = simular(
+                int(c["cc_num"]),
+                float(ins["ingreso"]),
+                float(ins["gasto_base"]),
+                float(ins["cv_gasto"]),
+                esc,
+                congelar(sup_dict),
+                (
+                    ("cambio_empleo", congelar(ce.__dict__)),
+                    ("credito_hipotecario", congelar(ch.__dict__)),
+                    ("negocio", congelar(ng.__dict__)),
+                ),
+            )
+
+            # Indicadores
+            riesgo = res["prob_deficit"]
+            tarjetas = [
+                (
+                    "Riesgo de números rojos",
+                    pct(riesgo),
+                    "Sin cambios: " + pct(res_base["prob_deficit"]),
+                    e.MANDARIN if riesgo >= de.UMBRAL_RIESGO_DEFICIT else e.LIME,
+                ),
+                (
+                    "Ahorro en 12 meses",
+                    dinero(res["ahorro_m12_p50"]),
+                    f"90% entre {dinero(res['ahorro_m12_p5'])} y {dinero(res['ahorro_m12_p95'])}",
+                    e.ELECTRIC,
+                ),
+                (
+                    "Fondo de emergencia",
+                    (
+                        f"{res['meses_meta_p50']:.0f} meses"
+                        if res["meses_meta_p50"]
+                        else "> 36 meses"
+                    ),
+                    f"Para juntar {dinero(res['meta_fondo_emergencia'])} (6 meses de gasto)",
+                    e.ELECTRIC,
+                ),
+            ]
+            if esc == "credito_hipotecario":
+                tarjetas.append(
+                    (
+                        "Pago del crédito",
+                        dinero(info["pago_mensual"]),
+                        f"{pct(info['pago_entre_ingreso'])} de su ingreso mensual",
+                        (
+                            e.LIME
+                            if (info["pago_entre_ingreso"] or 1) <= 0.35
+                            else e.MANDARIN
+                        ),
+                    )
+                )
+            elif esc == "negocio":
+                tarjetas.append(
+                    (
+                        "Recupera la inversión",
+                        pct(res["prob_recuperar_inversion"]),
+                        f"De {dinero(info['inversion'])}, en 36 meses",
+                        (
+                            e.LIME
+                            if (res["prob_recuperar_inversion"] or 0) >= 0.5
+                            else e.MANDARIN
+                        ),
+                    )
+                )
+            else:
+                tarjetas.append(
+                    (
+                        "Capacidad de ahorro, año 1",
+                        pct(res["capacidad_ahorro_12m_p50"]),
+                        "Mediana. Sin cambios: "
+                        + pct(res_base["capacidad_ahorro_12m_p50"]),
+                        e.ELECTRIC,
+                    )
+                )
+            izq, der = st.columns([5, 7], gap="medium")
+            with izq:
+                cols = st.columns(2)
+                for i, (et, val, nota, acento) in enumerate(tarjetas):
+                    with cols[i % 2]:
+                        html(
+                            '<div class="gd-mini">'
+                            f'<span class="gd-mini-label">{et}</span>'
+                            f'<span class="gd-mini-valor">{val}</span>'
+                            f'<span class="gd-kpi-marca" style="background:{acento}"></span>'
+                            f'<span class="gd-mini-nota">{nota}</span></div>'
+                        )
+                filas = "".join(
+                    f"<tr><td>Mes {h}</td>"
+                    f'<td class="num">{dinero(res[f"flujo_m{h}_p50"])}</td>'
+                    f'<td class="num">{dinero(res[f"flujo_m{h}_p5"])} a '
+                    f'{dinero(res[f"flujo_m{h}_p95"])}</td></tr>'
+                    for h in (1, 3, 6, 12)
+                )
+                html(
+                    '<div class="gd-subtitulo" style="margin-top:6px">Flujo de efectivo '
+                    "proyectado</div>"
+                    '<table class="gd-tabla"><thead><tr><th>Horizonte</th>'
+                    '<th class="num">Mediana</th><th class="num">90% de los casos</th>'
+                    f"</tr></thead><tbody>{filas}</tbody></table>"
+                )
+            with der:
+                grafica_abanico(bnd, None if esc == "base" else bnd_base)
+                html(
+                    '<p class="gd-nota"><b style="color:#001391">Línea azul</b>: mediana. '
+                    "Banda oscura: 50% de los casos; banda clara: 90%. "
+                    + (
+                        "<b>Línea punteada</b>: mediana sin cambios. "
+                        if esc != "base"
+                        else ""
+                    )
+                    + "El pico de gasto de cada diciembre (meses 12, 24 y 36) sale de los datos "
+                    "reales. Supuestos en docs/fase5_simulador_monte_carlo.md.</p>"
                 )
 
 html(

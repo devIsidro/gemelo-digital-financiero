@@ -39,6 +39,7 @@ PASOS = [
     ("asignar_prestamos", "Llave sintética", "Gold y modelo"),
     ("calcular_kpis", "KPIs financieros", "Gold y modelo"),
     ("modelo_prob_impago", "Modelo de impago", "Gold y modelo"),
+    ("simulador_monte_carlo", "Simulador Monte Carlo", "Gold y modelo"),
 ]
 
 
@@ -77,6 +78,18 @@ class Rutas:
     @property
     def metricas_modelo(self):
         return self.base / "gold" / "modelo_impago_metricas.json"
+
+    @property
+    def simulacion_insumos(self):
+        return self.base / "gold" / "simulacion_insumos.parquet"
+
+    @property
+    def simulacion_resumen(self):
+        return self.base / "gold" / "simulacion_resumen.parquet"
+
+    @property
+    def simulacion_parametros(self):
+        return self.base / "gold" / "simulacion_parametros.json"
 
 
 def _contar(ruta: Path, columna: str):
@@ -327,7 +340,7 @@ def resumen_corridas(df: pd.DataFrame) -> dict:
 
 
 def pasos_de_corrida(url: str, run_id: str) -> pd.DataFrame:
-    """Estado y duración de los 10 pasos de una corrida, en el orden de PASOS
+    """Estado y duración de los pasos de una corrida, en el orden de PASOS
     (los que todavía no existen en la corrida aparecen como pendientes)."""
     df = _consulta(
         url,

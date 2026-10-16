@@ -108,3 +108,27 @@ def test_frases_de_factores():
     assert frase_factor("dti", fila) == "Su pago mensual es 12.3 veces su ingreso"
     assert frase_factor("months_employed", fila) == "Lleva 3 meses en su empleo"
     assert frase_factor("employment_type=Full-time", fila) == "Está desempleado"
+
+
+def test_escenarios_portafolio_cuenta_clientes_en_riesgo():
+    from src.ml.simulador import ESCENARIOS
+
+    filas = []
+    for cc, prob in [(10, 0.0), (20, 0.5), (30, 0.2)]:
+        for esc in ESCENARIOS:
+            filas.append(
+                {
+                    "cc_num": cc,
+                    "escenario": esc,
+                    "prob_deficit": prob if esc == "credito_hipotecario" else 0.0,
+                    "ahorro_m12_p50": 1000.0,
+                    "ahorro_m36_p50": 3000.0,
+                    "capacidad_ahorro_12m_p50": 0.5,
+                    "flujo_m6_p50": 100.0,
+                }
+            )
+    t = de.escenarios_portafolio(pd.DataFrame(filas), _clientes())
+    assert list(t.index) == list(ESCENARIOS)
+    assert t.loc["credito_hipotecario", "en_riesgo"] == pytest.approx(2 / 3)
+    assert t.loc["base", "en_riesgo"] == 0
+    assert t.loc["base", "nombre"] == "Sin cambios"

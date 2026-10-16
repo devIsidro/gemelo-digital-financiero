@@ -6,7 +6,7 @@ Vista para el equipo de Data Engineering: muestra la salud del pipeline
 completo, de los datos crudos a los KPIs y el modelo de impago:
 
   1. Estado general y cifras principales.
-  2. Los 10 pasos del DAG bronze_ingest en su última corrida e historial de
+  2. Los 11 pasos del DAG bronze_ingest en su última corrida e historial de
      corridas (de aquí sale el KPI tasa_exito_ingesta del catálogo).
   3. Validaciones de calidad de transacciones y préstamos.
   4. Volumen de transacciones por día y por categoría.
@@ -271,7 +271,7 @@ with col_pipe:
                 "préstamos se procesan en paralelo y se unen en Gold."
             )
         else:
-            desc = "Los 10 pasos del DAG bronze_ingest."
+            desc = f"Los {len(datos.PASOS)} pasos del DAG bronze_ingest."
         html(e.titulo_caja("Pipeline de datos", desc, "flujo"))
         if pasos is None:
             html(

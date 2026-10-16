@@ -320,3 +320,52 @@ def hora_pico(calor: pd.DataFrame) -> tuple:
     """(día, hora) con más transacciones."""
     fila = calor.loc[calor["transacciones"].idxmax()]
     return fila["dia_nombre"], int(fila["hora"])
+
+
+# ---------------------------------------------------------------------------
+# Simulador Monte Carlo (módulo predictivo)
+# ---------------------------------------------------------------------------
+
+# Un cliente está "en riesgo de números rojos" en un escenario si en al menos
+# 10% de sus trayectorias su ahorro acumulado baja de cero en 36 meses.
+UMBRAL_RIESGO_DEFICIT = 0.10
+
+
+def cargar_simulacion(rutas: Rutas):
+    """(insumos, resumen, parámetros) del simulador, o None si el paso del
+    DAG todavía no ha corrido."""
+    if not (rutas.simulacion_resumen.exists() and rutas.simulacion_insumos.exists()):
+        return None
+    parametros = (
+        json.loads(rutas.simulacion_parametros.read_text(encoding="utf-8"))
+        if rutas.simulacion_parametros.exists()
+        else {}
+    )
+    return (
+        pd.read_parquet(rutas.simulacion_insumos),
+        pd.read_parquet(rutas.simulacion_resumen),
+        parametros,
+    )
+
+
+def escenarios_portafolio(
+    resumen: pd.DataFrame, clientes: pd.DataFrame
+) -> pd.DataFrame:
+    """Impacto de cada escenario en un grupo de clientes."""
+    from src.ml.simulador import ESCENARIOS, NOMBRES_ESCENARIOS
+
+    sub = resumen[resumen["cc_num"].isin(clientes["cc_num"])]
+    g = sub.groupby("escenario")
+    t = pd.DataFrame(
+        {
+            "en_riesgo": g["prob_deficit"].apply(
+                lambda x: (x >= UMBRAL_RIESGO_DEFICIT).mean()
+            ),
+            "ahorro_12m": g["ahorro_m12_p50"].median(),
+            "ahorro_36m": g["ahorro_m36_p50"].median(),
+            "capacidad_12m": g["capacidad_ahorro_12m_p50"].median(),
+            "flujo_m6": g["flujo_m6_p50"].median(),
+        }
+    ).reindex(list(ESCENARIOS))
+    t.insert(0, "nombre", [NOMBRES_ESCENARIOS[e] for e in t.index])
+    return t

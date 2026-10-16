@@ -64,9 +64,19 @@ portafolio). Filtro por segmento de riesgo (todos, bajo, medio, alto):
   de 2026 (intercepto, medias y desviaciones). Si el DAG no se ha vuelto a
   correr, el dashboard funciona igual pero sin esa parte y lo avisa.
 
+## Simulador Monte Carlo (agregado en la Fase 5)
+
+- **Portafolio:** porcentaje de clientes en riesgo de números rojos en cada
+  escenario (sin cambios, crédito hipotecario, cambio de empleo y abrir un
+  negocio), con el ahorro a 12 meses y la capacidad de ahorro del año 1.
+- **Perfil 360:** simulador interactivo: se elige el escenario, se mueven
+  sus parámetros y se ven al momento las bandas del ahorro a 36 meses, el
+  flujo de efectivo proyectado y el riesgo frente a no hacer cambios.
+
+Detalle en `docs/fase5_simulador_monte_carlo.md`.
+
 ## Pendiente (siguientes fases del plan)
 
-- Proyecciones del simulador Monte Carlo (semana 19).
 - Chat con el asistente de IA dentro del dashboard (semana 20).
 
 La v1 se presentó a Eduardo el 9 oct 2026 y dio su visto bueno.

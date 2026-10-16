@@ -47,8 +47,12 @@ kpis:
     capa: "Gold"
     nota_fase4: >
       La parte de gasto ya es real (Silver); el ingreso es
-      ingreso_mensual_simulado (Opción A). La base (ingreso - gasto, sin Monte
-      Carlo) ya se calcula como flujo_efectivo_mensual en src/spark/gold_kpis.py.
+      ingreso_mensual_simulado (Opción A). La base (ingreso - gasto) se calcula
+      como flujo_efectivo_mensual en src/spark/gold_kpis.py. La proyección con
+      bandas de confianza la calcula el simulador Monte Carlo
+      (src/ml/simulador.py, paso simulador_monte_carlo del DAG): columnas
+      flujo_m1_*, flujo_m3_* y flujo_m6_* de data/gold/simulacion_resumen.parquet,
+      en 4 escenarios. Detalle en docs/fase5_simulador_monte_carlo.md.
 
   - id: capacidad_ahorro
     nombre: "Capacidad de ahorro mensual"

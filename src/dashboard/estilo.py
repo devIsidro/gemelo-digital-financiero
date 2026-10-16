@@ -248,6 +248,15 @@ div[data-testid="stTabs"] [data-baseweb="tab-border"] {{ display: none; }}
   font: 700 32px/1.15 'Source Serif 4', Georgia, serif; color: var(--midnight); margin: 2px 0 6px 0;
 }}
 .gd-proximo {{ display: flex; gap: 12px; align-items: flex-start; }}
+.gd-mini {{
+  display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--g3);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; min-height: 118px;
+}}
+.gd-mini-label {{ font: 700 12px/1.3 'Lato', sans-serif; color: var(--g1); }}
+.gd-mini-valor {{
+  font: 700 26px/1.1 'Source Serif 4', Georgia, serif; color: var(--midnight);
+}}
+.gd-mini-nota {{ font: 400 11.5px/1.35 'Lato', sans-serif; color: var(--g1); }}
 .gd-proximo b {{ font: 700 14px 'Lato', sans-serif; color: var(--midnight); }}
 .gd-proximo p {{ font: 400 13px/1.45 'Lato', sans-serif; color: var(--g1); margin: 2px 0 0 0; }}
 </style>
