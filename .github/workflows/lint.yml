@@ -1,4 +1,4 @@
-name: Lint
+name: CI
 
 on:
   pull_request:
@@ -25,3 +25,29 @@ jobs:
 
       - name: Check formatting with black
         run: black --check src dags tests
+
+  # Pruebas unitarias (Spark, modelo, simulador y dashboards). La prueba del
+  # DAG necesita Airflow completo y se corre dentro de Docker.
+  pruebas:
+    runs-on: ubuntu-latest
+    env:
+      PYSPARK_PYTHON: python
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Java (para Spark)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install dependencies
+        run: pip install pytest pandas pyarrow numpy pyspark==4.2.0
+
+      - name: Run pytest
+        run: python -m pytest tests --ignore=tests/dags -q

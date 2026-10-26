@@ -90,7 +90,20 @@ flake8 src dags tests --max-line-length=100
 black --check src dags tests
 ```
 
-El linter (flake8 + black) corre automático en cada Pull Request (`.github/workflows/lint.yml`).
+En GitHub corren automáticamente el linter (flake8 + black) y las pruebas unitarias en cada push y
+Pull Request a `develop` y `main` (`.github/workflows/lint.yml`). La prueba del DAG necesita Airflow
+completo y se corre dentro de Docker.
+
+## Subir cambios
+
+En Windows, desde la carpeta del proyecto y en la rama `develop`:
+
+```
+publicar "mensaje del cambio"
+```
+
+`publicar.bat` trae lo último de GitHub, muestra los cambios, pide confirmación, hace el commit y lo
+sube a `develop`. Después, GitHub corre el lint y las pruebas.
 
 ## Estructura del repositorio
 

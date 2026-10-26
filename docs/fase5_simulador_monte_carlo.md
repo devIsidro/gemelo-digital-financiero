@@ -179,11 +179,16 @@ riesgo de números rojos casi se cuadruplica.
 - Los supuestos de inflación, desempleo y de cada escenario son académicos
   y se pueden ajustar.
 
-## Para decidir con Eduardo
+## Decisiones con Eduardo (reunión del 16 oct 2026)
 
-1. ¿Los supuestos generales (inflación de 3%, 0.4% mensual de perder el
-   ingreso, 3 meses sin ingreso) están bien, o BBVA maneja otros?
-2. ¿Los parámetros por defecto de cada escenario (sobre todo el crédito de
-   3 años de ingreso a 10% y 20 años) son razonables?
-3. ¿La definición de "en riesgo de números rojos" (10% de los futuros
-   posibles) sirve, o prefieren otro umbral?
+Se presentó el simulador en vivo en el dashboard ejecutivo. Eduardo dio su
+visto bueno y aprobó los supuestos tal como estaban:
+
+1. **Supuestos generales:** se quedan la inflación de 3% anual, la
+   probabilidad de 0.4% al mes de perder el ingreso y los 3 meses sin
+   ingreso en promedio.
+2. **Parámetros de los escenarios:** se quedan los valores por defecto,
+   incluido el crédito hipotecario de 3 años de ingreso a 10% anual y 20
+   años.
+3. **"En riesgo de números rojos":** se queda el umbral de 10% de los
+   futuros posibles.
