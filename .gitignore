@@ -44,6 +44,9 @@ mlruns/
 minio-data/
 _delta_log/
 
+# Archivos temporales de Word / Excel / PowerPoint
+~$*
+
 # OS / IDE
 .DS_Store
 .idea/

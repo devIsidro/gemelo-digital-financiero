@@ -26,11 +26,12 @@ KPIs:
   - capacidad_ahorro = (ingreso_mensual_simulado - gasto) / ingreso_mensual_simulado
     Puede ser negativa: el cliente gasta con la tarjeta más de lo que gana.
   - flujo_efectivo_mensual = ingreso_mensual_simulado - gasto
-    Base de flujo_efectivo_proyectado (falta la parte Monte Carlo).
+    Base de flujo_efectivo_proyectado; la proyección con bandas la hace
+    src/ml/simulador.py.
   - ratio_endeudamiento (DTI). Puede ser mayor a 1 (ver documento).
 
-prob_impago todavía NO se calcula: es un modelo que se entrena con las
-etiquetas de impago del dataset Loan Default (siguiente fase).
+prob_impago no se calcula aquí: sale del modelo de impago entrenado con
+las etiquetas del dataset Loan Default (src/ml/modelo_impago.py, Fase 5).
 
 Todos los montos están en USD. El gasto es real; el ingreso simulado y el
 préstamo asignado no son de esa persona, así que estos KPIs NO describen la

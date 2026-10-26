@@ -22,6 +22,9 @@ Pasos encadenados (Fase 2 a Fase 4):
                             flujo_efectivo_mensual y ratio_endeudamiento (DTI).
  10. modelo_prob_impago -> entrena el modelo de impago con los prestamos y
                             calcula prob_impago por cliente (necesita 7 y 8).
+ 11. simulador_monte_carlo -> proyecta el flujo de efectivo y el ahorro de
+                            cada cliente a 36 meses en 4 escenarios, con
+                            bandas de confianza (necesita 9).
 """
 
 from datetime import datetime, timedelta
@@ -32,6 +35,7 @@ from airflow.operators.python import PythonOperator
 from src.bronze_ingest.ingest_fraud_transactions import ingest_csv_to_bronze
 from src.bronze_ingest.ingest_loan_default import ingest_loan_default_to_bronze
 from src.ml.modelo_impago import run_modelo_job
+from src.ml.simulador import run_simulador_job
 from src.spark.asignar_prestamos import run_asignacion_job
 from src.spark.gold_kpis import run_kpis_job
 from src.spark.gold_transactions import run_gold_job
@@ -59,6 +63,7 @@ SILVER_LOANS_PATH = "data/silver/loan_default"
 GOLD_ASIGNACION_PATH = "data/gold/asignacion_prestamos"
 GOLD_PROB_IMPAGO_PATH = "data/gold/prob_impago_cliente"
 METRICAS_MODELO_PATH = "data/gold/modelo_impago_metricas.json"
+GOLD_DIR = "data/gold"
 
 
 def ingest_source(**context):
@@ -162,6 +167,16 @@ def modelo_prob_impago(**context):
     )
 
 
+def simulador_monte_carlo(**context):
+    """Simula los 4 escenarios para todos los clientes (Monte Carlo)."""
+    r = run_simulador_job(GOLD_KPIS_PATH, SILVER_PATH, GOLD_DIR)
+    print(
+        f"Simulador: {r['clientes']} clientes x 4 escenarios | factor de "
+        f"diciembre {r['factor_diciembre']} | prob. de déficit mediana por "
+        f"escenario: {r['prob_deficit_mediana']}"
+    )
+
+
 with DAG(
     dag_id="bronze_ingest",
     description="Pipeline Bronze -> Silver -> calidad -> Gold (transacciones y prestamos)",
@@ -234,3 +249,10 @@ with DAG(
     )
     # El modelo necesita los prestamos limpios y la asignacion a clientes
     [clean_loans_task, asignar_task] >> modelo_task
+
+    simulador_task = PythonOperator(
+        task_id="simulador_monte_carlo",
+        python_callable=simulador_monte_carlo,
+    )
+    # El simulador parte de los KPIs (ingreso simulado) y del gasto real
+    kpis_task >> simulador_task
