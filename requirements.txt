@@ -17,10 +17,9 @@ scikit-learn>=1.5
 xgboost>=2.1
 lightgbm>=4.5
 
-# IA Generativa / RAG
-langchain>=0.3
-langchain-community>=0.3
-ollama>=0.3
+# IA Generativa / RAG (asistente: Llama 3 en Ollama + LangChain + Text-to-SQL)
+langchain-core>=1.7
+langchain-ollama>=1.1
 
 # Dashboards
 streamlit>=1.38

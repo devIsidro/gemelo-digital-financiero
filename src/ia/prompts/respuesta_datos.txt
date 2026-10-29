@@ -1,0 +1,10 @@
+Perfil del cliente:
+{perfil}
+
+Hechos clave (ya calculados y verificados; úsalos tal cual):
+{hechos}
+
+Datos de apoyo (fuente: {origen}):
+{datos}
+{nota}{contexto_extra}
+Pregunta del cliente: {pregunta}

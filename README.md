@@ -55,11 +55,20 @@ Las transformaciones corren con PySpark 4.2 dentro del contenedor de Airflow
 | Dirección | http://localhost:8501 | http://localhost:8502 |
 | Para | Equipo de Data Engineering | Negocio: dirección, riesgos, producto |
 | Responde | ¿La plataforma funciona bien? | ¿Cómo están los clientes? |
-| Muestra | Estado de los 11 pasos, historial de corridas de Airflow, tasa de éxito, duración por paso, reglas de calidad | Portafolio por nivel de riesgo, ingresos vs gastos, mapa de calor de compras, consumo esencial vs discrecional, alertas tempranas, escenarios a futuro y perfil 360 de cada cliente con simulador Monte Carlo |
+| Muestra | Estado de los 11 pasos, historial de corridas de Airflow, tasa de éxito, duración por paso, reglas de calidad | Portafolio por nivel de riesgo, ingresos vs gastos, mapa de calor de compras, consumo esencial vs discrecional, alertas tempranas, escenarios a futuro, perfil 360 de cada cliente con simulador Monte Carlo y asistente de IA |
 | Código | `src/dashboard/operativo.py` | `src/dashboard/ejecutivo.py` |
 
 Ambos usan la Guía de Estilo de BBVA (`src/dashboard/estilo.py`) y leen la capa Gold de `./data`,
 así que primero hay que correr el DAG completo.
+
+### Asistente de IA
+
+La pestaña «Asistente IA» del dashboard ejecutivo responde preguntas sobre un cliente en lenguaje
+natural. Usa **Llama 3.1 (8B)** corriendo localmente con **Ollama** (servicio `ollama` de Docker, en
+la tarjeta de video NVIDIA) y **LangChain** con **Text-to-SQL** sobre la capa Gold: el modelo
+escribe la consulta, el asistente la valida y la ejecuta en DuckDB, y el modelo redacta la
+respuesta con esos datos. Las preguntas de «¿qué pasaría si...?» usan el simulador Monte Carlo.
+Código en `src/ia/`; detalle en `docs/fase5_asistente_ia.md`.
 
 ## Cómo levantar el entorno local
 
@@ -81,18 +90,26 @@ Luego, en Airflow, activa y corre el DAG `bronze_ingest`. Servicios disponibles:
 Si cambias el código de un dashboard, reconstrúyelo con
 `docker compose up -d --build dashboard dashboard-ejecutivo`.
 
+La primera vez hay que descargar el modelo del asistente (unos 5 GB, se guarda en el volumen
+`ollama-data`):
+
+```bash
+docker compose exec ollama ollama pull llama3.1:8b
+```
+
 ## Pruebas y calidad de código
 
 ```bash
 pip install -r requirements.txt
-python -m pytest tests            # pruebas unitarias (Spark, modelo, dashboards, DAG)
+python -m pytest tests            # pruebas unitarias (Spark, modelo, simulador, IA, dashboards, DAG)
 flake8 src dags tests --max-line-length=100
 black --check src dags tests
 ```
 
 En GitHub corren automáticamente el linter (flake8 + black) y las pruebas unitarias en cada push y
-Pull Request a `develop` y `main` (`.github/workflows/lint.yml`). La prueba del DAG necesita Airflow
-completo y se corre dentro de Docker.
+Pull Request a `develop` y `main` (`.github/workflows/lint.yml`, dependencias en
+`requirements-ci.txt`). La prueba del DAG necesita Airflow completo y se corre dentro de Docker. Las
+pruebas del asistente usan modelos falsos de LangChain, así que no necesitan Ollama.
 
 ## Subir cambios
 
@@ -113,7 +130,8 @@ sube a `develop`. Después, GitHub corre el lint y las pruebas.
 ├── src/
 │   ├── bronze_ingest/     # Ingesta cruda (Bronze) y data profiling
 │   ├── spark/             # Jobs de PySpark (Silver y Gold) y validaciones de calidad
-│   ├── ml/                # Modelo de probabilidad de impago y su explicación
+│   ├── ml/                # Modelo de impago, su explicación y simulador Monte Carlo
+│   ├── ia/                # Asistente de IA: Ollama + LangChain + Text-to-SQL (prompts/)
 │   ├── dashboard/         # Panel Operativo y Dashboard Ejecutivo (Streamlit)
 │   └── reportes/          # Gráficas de los documentos de revisión
 ├── config/                # Catálogo de KPIs y scripts de base de datos
@@ -122,7 +140,7 @@ sube a `develop`. Después, GitHub corre el lint y las pruebas.
 ├── Dockerfile             # Imagen de Airflow con PySpark
 ├── Dockerfile.dashboard   # Imagen de los dashboards
 ├── docker-compose.yml     # Infraestructura local reproducible
-└── .github/workflows/     # CI: linters automáticos en cada Pull Request
+└── .github/workflows/     # CI: linters y pruebas automáticas en cada push y Pull Request
 ```
 
 ## Estado del proyecto
@@ -133,7 +151,7 @@ sube a `develop`. Después, GitHub corre el lint y las pruebas.
 | 2. Ingesta y capa Bronze | Completa | `docs/entregables/` (diccionario de datos) |
 | 3. Silver, calidad y panel operativo | Completa | `src/spark/validate_silver.py`, `src/dashboard/operativo.py` |
 | 4. Capa Gold, KPIs y dashboard ejecutivo | Completa (v1) | `docs/fase4_diseno_capa_gold.md`, `docs/fase4_datos_simulados_ingreso_credito.md`, `docs/fase4_llave_sintetica_prestamos.md`, `docs/fase4_decisiones_kpis.md`, `docs/fase4_dashboard_ejecutivo.md` |
-| 5. IA y simulación | En curso: modelo de impago y simulador Monte Carlo listos; sigue el asistente de IA | `docs/fase5_modelo_impago.md`, `docs/fase5_revision_distribuciones.md`, `docs/fase5_simulador_monte_carlo.md` |
+| 5. IA y simulación | En curso: modelo de impago y simulador Monte Carlo listos; asistente de IA en prueba | `docs/fase5_modelo_impago.md`, `docs/fase5_revision_distribuciones.md`, `docs/fase5_simulador_monte_carlo.md`, `docs/fase5_asistente_ia.md` |
 | 6. Observabilidad y hardening | Pendiente | — |
 | 7. Cierre ejecutivo | Pendiente | — |
 

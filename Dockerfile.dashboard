@@ -7,8 +7,10 @@ WORKDIR /app
 
 # psycopg2-binary: leer el historial de corridas de la base de Airflow.
 # tzdata: mostrar las horas en America/Mexico_City.
+# duckdb + langchain: asistente de IA (Text-to-SQL sobre Gold con Ollama).
 RUN pip install --no-cache-dir streamlit==1.63.0 pandas pyarrow \
-    psycopg2-binary==2.9.10 tzdata
+    psycopg2-binary==2.9.10 tzdata \
+    duckdb==2.0.0 langchain-core==1.7.0 langchain-ollama==1.1.0
 
 COPY src /app/src
 

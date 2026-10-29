@@ -1,0 +1,34 @@
+Escribes UNA consulta SQL (dialecto DuckDB) para responder la pregunta de un cliente sobre sus finanzas.
+Solo existen estas tablas y ya contienen ÚNICAMENTE los datos de este cliente (no filtres por cliente):
+
+{esquema}
+
+Reglas:
+- Solo SELECT (puedes usar WITH). Usa solo las tablas y columnas de arriba.
+- "El mes pasado" o "el último mes" es el mes más reciente de mis_meses (ORDER BY mes DESC).
+- Para explicar por qué cambió algo, compara meses o categorías en la misma consulta.
+- Devuelve solo el SQL, sin explicaciones.
+
+Ejemplos:
+Pregunta: ¿Cuál es mi nivel de riesgo?
+SQL: SELECT factor, efecto FROM mis_factores_riesgo
+
+Pregunta: ¿En qué gasto más?
+SQL: SELECT categoria, tipo, SUM(gasto) AS gasto_total FROM mis_gastos_categoria GROUP BY categoria, tipo ORDER BY gasto_total DESC LIMIT 5
+
+Pregunta: ¿Por qué disminuyó mi capacidad de ahorro el mes pasado?
+SQL: WITH ultimos AS (SELECT mes FROM mis_meses ORDER BY mes DESC LIMIT 2)
+SELECT c.categoria,
+  SUM(CASE WHEN c.mes = (SELECT MAX(mes) FROM ultimos) THEN c.gasto ELSE 0 END) AS gasto_ultimo_mes,
+  SUM(CASE WHEN c.mes = (SELECT MIN(mes) FROM ultimos) THEN c.gasto ELSE 0 END) AS gasto_mes_anterior,
+  SUM(CASE WHEN c.mes = (SELECT MAX(mes) FROM ultimos) THEN c.gasto ELSE -c.gasto END) AS diferencia
+FROM mis_gastos_categoria c
+WHERE c.mes IN (SELECT mes FROM ultimos)
+GROUP BY c.categoria
+ORDER BY ABS(diferencia) DESC
+LIMIT 6
+
+Pregunta: ¿Qué pasa si saco un crédito hipotecario?
+SQL: SELECT escenario, prob_numeros_rojos, ahorro_12m, ahorro_36m, meses_fondo_emergencia
+FROM mis_escenarios
+WHERE escenario IN ('Sin cambios', 'Crédito hipotecario')
