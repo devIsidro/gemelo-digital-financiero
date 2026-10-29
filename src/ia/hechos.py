@@ -86,6 +86,13 @@ def hechos_meses(tablas: dict) -> list:
         f"{_direccion(ant['capacidad_ahorro'], ult['capacidad_ahorro'])}: de "
         f"{_pct(ant['capacidad_ahorro'])} a {_pct(ult['capacidad_ahorro'])}.",
     ]
+    del_mes = cat[cat["mes"] == ult["mes"]].groupby("categoria")["gasto"].sum()
+    if not del_mes.empty:
+        hechos.append(
+            f"En {ult['mes_nombre']} la categoría en la que más gastaste en total fue "
+            f"{del_mes.idxmax()}: {_usd(del_mes.max())}. (No es lo mismo que la "
+            "categoría que más aumentó.)"
+        )
     cambios, t = _cambio_categorias(cat, ant["mes"], ult["mes"])
     hechos += _frase_categoria(
         cambios, t, ant["mes"], ult["mes"], (ant["mes_nombre"], ult["mes_nombre"])
@@ -195,18 +202,34 @@ def factores_riesgo(tablas: dict) -> tuple:
     return frase_sube, frase_baja, claves
 
 
+def _dif_meses(hoy, nuevo) -> str:
+    """« (3 meses más)» para que el modelo no tenga que restar."""
+    a, b = hoy["meses_fondo_emergencia"], nuevo["meses_fondo_emergencia"]
+    if pd.isna(a) or pd.isna(b) or round(a) == round(b):
+        return ""
+    d = round(b) - round(a)
+    unidad = "mes" if abs(d) == 1 else "meses"
+    return f" ({abs(d)} {unidad} {'más' if d > 0 else 'menos'})"
+
+
 def hechos_gasto(datos: pd.DataFrame) -> list:
     hoy, nuevo = datos.iloc[0], datos.iloc[1]
 
     def meses(v):
-        return "más de 36 meses" if pd.isna(v) else f"{v:.0f} meses"
+        if pd.isna(v):
+            return "más de 36 meses"
+        return "1 mes" if round(v) == 1 else f"{v:.0f} meses"
 
     dif_igual = "igual" in _puntos(
         hoy["prob_numeros_rojos"], nuevo["prob_numeros_rojos"]
     )
+    dif_ahorro = nuevo["ahorro_12m"] - hoy["ahorro_12m"]
+    fondo_hoy = meses(hoy["meses_fondo_emergencia"])
+    fondo_nuevo = meses(nuevo["meses_fondo_emergencia"])
     return [
-        f"Escenario: {nuevo['situacion'].lower()} (gasto mensual de "
-        f"{_usd(hoy['gasto_mensual'])} a {_usd(nuevo['gasto_mensual'])}).",
+        f"Escenario: {nuevo['situacion'].lower()}. En la simulación tu gasto mensual "
+        f"pasaría de {_usd(hoy['gasto_mensual'])} a {_usd(nuevo['gasto_mensual'])} "
+        "(usa estos montos; no uses el gasto promedio del perfil).",
         f"Tu probabilidad de quedarte en números rojos en 36 meses pasaría de "
         f"{_pct(hoy['prob_numeros_rojos'])} a {_pct(nuevo['prob_numeros_rojos'])}, "
         f"o sea {_puntos(hoy['prob_numeros_rojos'], nuevo['prob_numeros_rojos'])}"
@@ -214,9 +237,14 @@ def hechos_gasto(datos: pd.DataFrame) -> list:
         "Números rojos significa que tu ahorro acumulado baje de cero; NO es la "
         "probabilidad de dejar de pagar tu préstamo.",
         f"Tu ahorro acumulado típico a 12 meses pasaría de {_usd(hoy['ahorro_12m'])} "
-        f"a {_usd(nuevo['ahorro_12m'])}.",
-        f"Juntar tu fondo de emergencia te tomaría {meses(nuevo['meses_fondo_emergencia'])} "
-        f"en lugar de {meses(hoy['meses_fondo_emergencia'])}.",
+        f"a {_usd(nuevo['ahorro_12m'])} ({_usd(abs(dif_ahorro))} "
+        f"{'más' if dif_ahorro >= 0 else 'menos'}).",
+        (
+            f"Juntar tu fondo de emergencia te seguiría tomando {fondo_nuevo}."
+            if fondo_nuevo == fondo_hoy
+            else f"Juntar tu fondo de emergencia te tomaría {fondo_nuevo} en lugar de "
+            f"{fondo_hoy}{_dif_meses(hoy, nuevo)}."
+        ),
     ]
 
 

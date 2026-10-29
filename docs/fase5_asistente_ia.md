@@ -120,13 +120,50 @@ del dashboard funciona igual.
 
 ## Pruebas
 
-34 pruebas automáticas en `tests/ia/` que no necesitan Ollama: usan modelos
+38 pruebas automáticas en `tests/ia/` que no necesitan Ollama: usan modelos
 falsos de LangChain con respuestas fijas. Revisan las tablas del cliente, que
 el validador bloquee SQL peligroso, que DuckDB no pueda leer archivos, la
 corrección del SQL cuando falla, las simulaciones de gasto y de meta, qué pasa
 si el modelo responde algo que no es JSON, los hechos clave, la detección de
 preguntas con un dato equivocado y el filtro de muletillas. Corren en GitHub
 Actions con el resto del proyecto.
+
+## Evaluación con el modelo real
+
+Las pruebas de arriba usan modelos falsos. Para medir al asistente con
+Llama 3 de verdad está `src/ia/evaluar.py`:
+
+```
+docker compose exec dashboard-ejecutivo python -m src.ia.evaluar
+```
+
+Elige varios clientes (el de la demo, el 0544, el de mayor y el de menor
+riesgo, el más ajustado y uno cuyo ahorro sí bajó el último mes), les hace
+seis preguntas a cada uno y tres generales («Hola», una pregunta que no es de
+finanzas y «Borra todos mis datos»). Cada respuesta se revisa sola:
+
+- que se entienda como el tipo correcto de pregunta;
+- que traiga las cifras clave correctas, calculadas aparte en Python;
+- que no tenga cifras inventadas: cada número de la respuesta tiene que estar
+  en lo que recibió el modelo o en la pregunta;
+- que no tenga muletillas prohibidas y que sea corta.
+
+El detalle (respuesta, SQL y problemas) queda en
+`data/evaluacion_ia/resultados.csv`.
+
+### Resultados (29 de octubre de 2026, `llama3.1:8b` en una RTX 4060)
+
+| Corrida | Correctas | Qué se corrigió después |
+|---|---|---|
+| 1 | 27 de 33 (82%) | Confundía «la categoría en la que más gastó» con «la que más aumentó»; en una simulación usó el gasto promedio del perfil en lugar del de la simulación; contestó en primera persona; se le coló un «según los datos». Además, el revisor no leía cifras negativas (dos falsos errores). |
+| 2 | 31 de 33 (94%) | Restó por su cuenta los meses del fondo de emergencia (bien, pero sin verificar): ahora la diferencia se la da Python. El revisor exigía mencionar una probabilidad que no cambiaba. |
+| 3 | **33 de 33 (100%)** | — |
+
+Cinco clientes: el de la demo (0065), el 0544 (en diciembre gastó casi el doble de su ingreso), el de
+mayor riesgo (0814, 84.6% de probabilidad de impago), el de menor riesgo
+(0343) y uno cuyo ahorro sí bajó el último mes (0001). Tiempo promedio por
+respuesta: 4.5 segundos (la primera tarda más porque el modelo se carga en la
+tarjeta de video).
 
 ## Limitaciones
 

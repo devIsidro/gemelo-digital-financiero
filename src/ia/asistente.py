@@ -320,6 +320,8 @@ _FUENTE = (
 )
 _FUENTE_INICIO = re.compile(r"(^|[.!?]\s+)" + _FUENTE + r"\s*,\s*(\w)", re.I)
 _FUENTE_ENTRE_COMAS = re.compile(r",\s+" + _FUENTE + r"\s*,", re.I)
+# «Lo siento, pero según los datos, en…» -> «Lo siento, pero en…»
+_FUENTE_TRAS_PALABRA = re.compile(r"(?<=\w)\s+" + _FUENTE + r"\s*,(?=\s)", re.I)
 _FUENTE_FINAL = re.compile(r",?\s+" + _FUENTE + r"(?=\s*[.;!?])", re.I)
 _ETIQUETA = re.compile(
     r"(^|[.!?]\s+)(?:atenci[óo]n|nota|importante|aclaraci[óo]n)\s*:\s*(\w)", re.I
@@ -353,6 +355,7 @@ def limpiar_respuesta(texto: str, consejos: bool = False) -> str:
     no pidió consejo, las recomendaciones genéricas. Lo demás no se toca."""
     texto = _FUENTE_INICIO.sub(lambda r: r.group(1) + r.group(2).upper(), texto)
     texto = _FUENTE_ENTRE_COMAS.sub("", texto)
+    texto = _FUENTE_TRAS_PALABRA.sub("", texto)
     texto = _FUENTE_FINAL.sub("", texto)
     texto = _ETIQUETA.sub(lambda r: r.group(1) + r.group(2).upper(), texto)
     if not consejos:

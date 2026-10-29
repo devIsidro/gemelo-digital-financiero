@@ -334,6 +334,10 @@ def test_limpia_muletillas_de_fuente():
         ia.limpiar_respuesta("Tu riesgo, según los datos, es Medio según los datos.")
         == "Tu riesgo es Medio."
     )
+    assert (
+        ia.limpiar_respuesta("Lo siento, pero según los datos, no la alcanzas.")
+        == "Lo siento, pero no la alcanzas."
+    )
     sin_cambio = "Según la simulación, tu ahorro bajaría."
     assert ia.limpiar_respuesta(sin_cambio) == sin_cambio
 
