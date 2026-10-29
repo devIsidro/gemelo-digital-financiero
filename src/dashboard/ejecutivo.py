@@ -13,7 +13,10 @@ proyecto). Lee solo de la capa Gold (y de Silver para el histórico):
 
 El simulador Monte Carlo (src/ml/simulador.py) aparece en las dos vistas:
 impacto de cada escenario en el portafolio y simulación interactiva de un
-cliente. Pendiente para la siguiente fase: chat con el asistente de IA.
+cliente.
+
+  Asistente IA Chat sobre un cliente en lenguaje natural (src/ia/): Llama 3
+               en Ollama, conectado a Gold con LangChain y Text-to-SQL.
 
 Corre con: streamlit run src/dashboard/ejecutivo.py
 """
@@ -31,6 +34,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from src.dashboard import datos  # noqa: E402
 from src.dashboard import datos_ejecutivo as de  # noqa: E402
 from src.dashboard import estilo as e  # noqa: E402
+from src.ia import asistente as ia  # noqa: E402
+from src.ia import contexto as cx  # noqa: E402
 from src.ml import simulador as sm  # noqa: E402
 from src.ml.explicacion import CORTES_RIESGO, NIVELES, RANGOS  # noqa: E402
 
@@ -438,6 +443,68 @@ periodo = (
 )
 ahora = pd.Timestamp.now(tz=datos.ZONA_HORARIA)
 
+
+@st.cache_data(ttl=600, show_spinner=False)
+def meses_historico():
+    return de.meses_completos(cargar_base()[3])
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def estado_ollama():
+    return ia.ollama_disponible()
+
+
+@st.cache_resource(show_spinner=False)
+def modelos_ia():
+    return ia.crear_modelos()
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def tablas_ia(cc_num: int):
+    """Las tablas que el asistente puede consultar, solo de este cliente."""
+    clientes, _, aportes, tx, _ = cargar_base()
+    fila = clientes[clientes["cc_num"] == cc_num].iloc[0]
+    sim = cargar_sim()
+    resumen = None if sim is None else sim[1][sim[1]["cc_num"] == cc_num]
+    aporte = None if aportes is None else aportes.loc[fila.name]
+    return cx.tablas_cliente(
+        fila, tx[tx["cc_num"] == cc_num], meses_historico(), resumen, aporte
+    )
+
+
+def sin_latex(texto: str) -> str:
+    """Streamlit lee $...$ como fórmula; los montos en dólares se escapan."""
+    return texto.replace("$", "\\$")
+
+
+def detalle_ia(prep):
+    """«Cómo lo calculé»: de dónde salen los números de la respuesta."""
+    if prep is None or prep.tipo == "otro":
+        return
+    with st.expander("Cómo lo calculé"):
+        if prep.tipo == "datos":
+            st.caption(
+                "El modelo tradujo tu pregunta a esta consulta SQL sobre tus datos "
+                "de la capa Gold (Text-to-SQL):"
+            )
+            if prep.sql:
+                st.code(prep.sql, language="sql", wrap_lines=True)
+            if len(prep.intentos) > 1 and prep.sql:
+                st.caption(
+                    "La primera consulta tenía un error y el asistente la corrigió solo."
+                )
+        else:
+            st.caption(f"Datos de la {prep.origen}.")
+        if prep.nota:
+            st.caption(prep.nota)
+        if prep.datos is not None and not prep.datos.empty:
+            tabla = ia.formatear_df(prep.datos)
+            tabla.columns = [
+                str(c).replace("_", " ").capitalize() for c in tabla.columns
+            ]
+            st.dataframe(tabla, hide_index=True)
+
+
 # ---------------------------------------------------------------------------
 # Encabezado
 # ---------------------------------------------------------------------------
@@ -459,7 +526,9 @@ with der:
     )
 
 st.write("")
-tab_portafolio, tab_cliente = st.tabs(["Portafolio", "Perfil 360 del cliente"])
+tab_portafolio, tab_cliente, tab_ia = st.tabs(
+    ["Portafolio", "Perfil 360 del cliente", "Asistente IA"]
+)
 
 # ===========================================================================
 # PORTAFOLIO
@@ -1123,6 +1192,129 @@ with tab_cliente:
                     + "El pico de gasto de cada diciembre (meses 12, 24 y 36) sale de los datos "
                     "reales. Supuestos en docs/fase5_simulador_monte_carlo.md.</p>"
                 )
+
+# ===========================================================================
+# ASISTENTE IA
+# ===========================================================================
+
+with tab_ia:
+    with st.container(key="caja_ia"):
+        html(
+            e.titulo_caja(
+                "Asistente financiero (IA generativa)",
+                "Pregunta en tus palabras sobre un cliente. Responde Llama 3.1, que corre "
+                "en esta computadora con Ollama; los números salen de la capa Gold y del "
+                "simulador Monte Carlo, no de la memoria del modelo.",
+                "ia",
+            )
+        )
+        ok_ia, motivo_ia = estado_ollama()
+        a1, a2 = st.columns([2, 3], vertical_alignment="bottom")
+        with a1:
+            actual = st.session_state.get("cliente", opciones[0])
+            elegido_ia = st.selectbox(
+                "Cliente",
+                opciones,
+                index=opciones.index(actual) if actual in opciones else 0,
+                format_func=lambda c: etiquetas[c],
+                key="cliente_ia",
+            )
+        with a2:
+            html(
+                e.pill(f"{ia.OLLAMA_MODELO} · local", e.LIME, "●")
+                if ok_ia
+                else e.pill("Asistente apagado", e.MANDARIN, "▲")
+            )
+        if not ok_ia:
+            html(
+                e.aviso(
+                    (
+                        (
+                            "El asistente necesita Ollama. En la terminal, dentro de la carpeta "
+                            "del proyecto: <code>docker compose up -d ollama</code>"
+                        )
+                        if motivo_ia == "sin_servicio"
+                        else (
+                            "Ollama está corriendo pero falta descargar el modelo (solo una vez, "
+                            "unos 5 GB): <code>docker compose exec ollama ollama pull "
+                            f"{ia.OLLAMA_MODELO}</code>"
+                        )
+                    ),
+                    info=True,
+                )
+            )
+        else:
+            fila_ia = clientes[clientes["cliente"] == elegido_ia].iloc[0]
+            cc_ia = int(fila_ia["cc_num"])
+            sim_ia = cargar_sim()
+            insumo_ia, sup_ia = None, {}
+            if sim_ia is not None:
+                filas = sim_ia[0][sim_ia[0]["cc_num"] == cc_ia]
+                insumo_ia = None if filas.empty else filas.iloc[0]
+                sup_ia = sim_ia[2].get("supuestos", {})
+            historial = st.session_state.setdefault("chat_ia", {}).setdefault(
+                elegido_ia, []
+            )
+
+            html('<div class="gd-subtitulo" style="margin-top:4px">Prueba con</div>')
+            sugerida = None
+            columnas_sug = st.columns(2)
+            for i, q in enumerate(ia.PREGUNTAS_EJEMPLO):
+                if columnas_sug[i % 2].button(
+                    q, key=f"sug_ia_{i}", use_container_width=True
+                ):
+                    sugerida = q
+
+            conversacion = st.container()
+            escrita = st.chat_input(
+                "Escribe tu pregunta sobre este cliente…", key="chat_ia_entrada"
+            )
+            pregunta = escrita or sugerida
+
+            with conversacion:
+                for msg in historial:
+                    with st.chat_message(msg["rol"]):
+                        st.markdown(sin_latex(msg["texto"]))
+                        detalle_ia(msg.get("prep"))
+                if pregunta:
+                    with st.chat_message("user"):
+                        st.markdown(sin_latex(pregunta))
+                    with st.chat_message("assistant"):
+                        texto, prep = None, None
+                        try:
+                            asistente = ia.Asistente(
+                                modelos_ia(), tablas_ia(cc_ia), insumo_ia, sup_ia, cc_ia
+                            )
+                            with st.spinner("Buscando en los datos del cliente…"):
+                                prep = asistente.preparar(pregunta, historial)
+                            texto = st.write_stream(
+                                sin_latex(parte)
+                                for parte in asistente.redactar(prep, historial)
+                            )
+                            texto = texto.replace("\\$", "$")
+                        except Exception:  # el modelo no respondió
+                            st.error(
+                                "No pude responder: el modelo no contestó. Revisa que "
+                                "Ollama siga corriendo y vuelve a intentarlo."
+                            )
+                            estado_ollama.clear()
+                        if texto:
+                            detalle_ia(prep)
+                    if texto:
+                        historial.append({"rol": "user", "texto": pregunta})
+                        historial.append(
+                            {"rol": "assistant", "texto": texto, "prep": prep}
+                        )
+
+            if historial and st.button("Borrar conversación", key="borrar_ia"):
+                historial.clear()
+                st.rerun()
+
+    html(
+        '<p class="gd-nota">Respuestas generadas por IA con datos simulados de un '
+        "proyecto académico: son estimaciones, no asesoría financiera. Detalle en "
+        "docs/fase5_asistente_ia.md.</p>"
+    )
 
 html(
     '<p class="gd-pie">Fuentes: Credit Card Transactions Fraud Detection y Loan Default '

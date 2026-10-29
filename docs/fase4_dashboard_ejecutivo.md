@@ -75,8 +75,9 @@ portafolio). Filtro por segmento de riesgo (todos, bajo, medio, alto):
 
 Detalle en `docs/fase5_simulador_monte_carlo.md`.
 
-## Pendiente (siguientes fases del plan)
+## Asistente de IA (agregado en la Fase 5)
 
-- Chat con el asistente de IA dentro del dashboard (semana 20).
+Pestaña «Asistente IA»: chat sobre un cliente en lenguaje natural, con Llama 3
+en Ollama y Text-to-SQL sobre Gold. Detalle en `docs/fase5_asistente_ia.md`.
 
 La v1 se presentó a Eduardo el 9 oct 2026 y dio su visto bueno.

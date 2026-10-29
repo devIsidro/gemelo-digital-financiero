@@ -1,0 +1,9 @@
+# Dependencias para las pruebas en GitHub Actions (.github/workflows/lint.yml).
+# Solo lo necesario para correr tests/ sin Airflow (la prueba del DAG se corre en Docker).
+pytest
+pandas
+pyarrow
+numpy
+pyspark==4.2.0
+duckdb==2.0.0
+langchain-core==1.7.0

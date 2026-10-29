@@ -119,10 +119,33 @@ services:
     command: ["src/dashboard/ejecutivo.py"]
     ports:
       - "8502:8501"
+    environment:
+      # Asistente de IA (Fase 5): modelo local en el servicio ollama.
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODELO: ${OLLAMA_MODELO:-llama3.1:8b}
     volumes:
       - ./data:/app/data
+
+  # Asistente de IA (Fase 5): Llama 3 corriendo localmente con Ollama, en la
+  # tarjeta de video NVIDIA. El modelo se descarga una sola vez (~5 GB) con:
+  #   docker compose exec ollama ollama pull llama3.1:8b
+  # y se guarda en el volumen ollama-data.
+  ollama:
+    image: ollama/ollama:0.40.3
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
 volumes:
   postgres-data:
   minio-data:
   airflow-logs:
+  ollama-data:
