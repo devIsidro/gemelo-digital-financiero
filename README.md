@@ -37,13 +37,14 @@ descargarlos de Kaggle y ponerlos en `data/raw/`.
 
 ## Pipeline (DAG `bronze_ingest` de Airflow)
 
-Corre todos los días (`@daily`) o a mano desde la interfaz de Airflow. Tiene 11 pasos:
+Corre todos los días (`@daily`) o a mano desde la interfaz de Airflow. Tiene 12 pasos:
 
 | Rama | Pasos |
 |---|---|
 | Transacciones | `ingest_source` → `clean_silver` → `validate_quality` → `build_gold_perfil` → `simular_ingreso_credito` |
 | Préstamos | `ingest_loan_default` → `clean_silver_loans` |
 | Gold y modelo | `asignar_prestamos` → `calcular_kpis` → `simulador_monte_carlo`, y `modelo_prob_impago` |
+| Observabilidad | `revisar_slas`: al final, aunque algo falle, revisa los SLA y la consistencia entre capas y manda las alertas |
 
 Las transformaciones corren con PySpark 4.2 dentro del contenedor de Airflow
 (`Dockerfile`). Una corrida completa tarda alrededor de 5 minutos.
@@ -55,7 +56,7 @@ Las transformaciones corren con PySpark 4.2 dentro del contenedor de Airflow
 | Dirección | http://localhost:8501 | http://localhost:8502 |
 | Para | Equipo de Data Engineering | Negocio: dirección, riesgos, producto |
 | Responde | ¿La plataforma funciona bien? | ¿Cómo están los clientes? |
-| Muestra | Estado de los 11 pasos, historial de corridas de Airflow, tasa de éxito, duración por paso, reglas de calidad | Portafolio por nivel de riesgo, ingresos vs gastos, mapa de calor de compras, consumo esencial vs discrecional, alertas tempranas, escenarios a futuro, perfil 360 de cada cliente con simulador Monte Carlo y asistente de IA |
+| Muestra | SLA, alertas recientes, estado de los 12 pasos, historial de corridas de Airflow, tasa de éxito, duración por paso, reglas de calidad, consistencia entre capas, estado del asistente de IA | Portafolio por nivel de riesgo, ingresos vs gastos, mapa de calor de compras, consumo esencial vs discrecional, alertas tempranas, escenarios a futuro, perfil 360 de cada cliente con simulador Monte Carlo y asistente de IA |
 | Código | `src/dashboard/operativo.py` | `src/dashboard/ejecutivo.py` |
 
 Ambos usan la Guía de Estilo de BBVA (`src/dashboard/estilo.py`) y leen la capa Gold de `./data`,
@@ -99,6 +100,20 @@ La primera vez hay que descargar el modelo del asistente (unos 5 GB, se guarda e
 docker compose exec ollama ollama pull llama3.1:8b
 ```
 
+### Observabilidad y alertas (Fase 6)
+
+El Panel Operativo muestra 6 SLA (duración, frescura, tasa de éxito, calidad, consistencia entre
+capas y asistente de IA), las alertas recientes y la consistencia Bronze → Silver → Gold. Si un
+paso del DAG falla o un SLA no se cumple, se genera una alerta en el panel y, si se configura en
+`.env` (`ALERTAS_SMTP_*`), por correo. Revisión desde la terminal:
+
+```bash
+docker compose exec dashboard python -m src.observabilidad.revisar
+docker compose exec dashboard python -m src.observabilidad.revisar --correo-prueba
+```
+
+Detalle en `docs/fase6_observabilidad.md`.
+
 ## Pruebas y calidad de código
 
 ```bash
@@ -134,6 +149,7 @@ sube a `develop`. Después, GitHub corre el lint y las pruebas.
 │   ├── spark/             # Jobs de PySpark (Silver y Gold) y validaciones de calidad
 │   ├── ml/                # Modelo de impago, su explicación y simulador Monte Carlo
 │   ├── ia/                # Asistente de IA: Ollama + LangChain + Text-to-SQL (prompts/)
+│   ├── observabilidad/    # SLA, alertas (panel y correo) y consistencia entre capas
 │   ├── dashboard/         # Panel Operativo y Dashboard Ejecutivo (Streamlit)
 │   └── reportes/          # Gráficas de los documentos de revisión
 ├── config/                # Catálogo de KPIs y scripts de base de datos
@@ -154,7 +170,7 @@ sube a `develop`. Después, GitHub corre el lint y las pruebas.
 | 3. Silver, calidad y panel operativo | Completa | `src/spark/validate_silver.py`, `src/dashboard/operativo.py` |
 | 4. Capa Gold, KPIs y dashboard ejecutivo | Completa (v1) | `docs/fase4_diseno_capa_gold.md`, `docs/fase4_datos_simulados_ingreso_credito.md`, `docs/fase4_llave_sintetica_prestamos.md`, `docs/fase4_decisiones_kpis.md`, `docs/fase4_dashboard_ejecutivo.md` |
 | 5. IA y simulación | Lista: modelo de impago, simulador Monte Carlo y asistente de IA (75 de 75 en la evaluación con el modelo real) | `docs/fase5_modelo_impago.md`, `docs/fase5_revision_distribuciones.md`, `docs/fase5_simulador_monte_carlo.md`, `docs/fase5_asistente_ia.md` |
-| 6. Observabilidad y hardening | Pendiente | — |
+| 6. Observabilidad y hardening | Lista: 6 SLA, alertas en el panel y por correo, consistencia Bronze → Silver → Gold, healthchecks | `docs/fase6_observabilidad.md` |
 | 7. Cierre ejecutivo | Pendiente | — |
 
 Decisiones clave tomadas con BBVA (detalle en `docs/`):
