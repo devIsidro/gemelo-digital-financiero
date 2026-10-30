@@ -69,6 +69,29 @@ def _frase_categoria(
     return frases
 
 
+def _frase_tipos(cat: pd.DataFrame, previo, mes, nombres) -> str:
+    """«De nov a dic tu gasto esencial bajó de $X a $Y y tu gasto discrecional
+    subió de $A a $B.» (esencial = súper, gasolina, salud…; discrecional = lo
+    demás)."""
+    if "tipo" not in cat.columns:
+        return ""
+    t = cat[cat["mes"].isin([previo, mes])].pivot_table(
+        index="tipo", columns="mes", values="gasto", aggfunc="sum", fill_value=0
+    )
+    partes = []
+    for tipo in ("Esencial", "Discrecional"):
+        if tipo not in t.index:
+            continue
+        a = t.loc[tipo].get(previo, 0.0)
+        b = t.loc[tipo].get(mes, 0.0)
+        partes.append(
+            f"tu gasto {tipo.lower()} {_direccion(a, b)} de {_usd(a)} a {_usd(b)}"
+        )
+    if not partes:
+        return ""
+    return f"De {nombres[0]} a {nombres[1]} " + " y ".join(partes) + "."
+
+
 def hechos_meses(tablas: dict) -> list:
     """El último mes contra el anterior, y el mes de menor ahorro."""
     m = tablas["mis_meses"]
@@ -86,6 +109,11 @@ def hechos_meses(tablas: dict) -> list:
         f"{_direccion(ant['capacidad_ahorro'], ult['capacidad_ahorro'])}: de "
         f"{_pct(ant['capacidad_ahorro'])} a {_pct(ult['capacidad_ahorro'])}.",
     ]
+    tipos = _frase_tipos(
+        cat, ant["mes"], ult["mes"], (ant["mes_nombre"], ult["mes_nombre"])
+    )
+    if tipos:
+        hechos.append(tipos)
     del_mes = cat[cat["mes"] == ult["mes"]].groupby("categoria")["gasto"].sum()
     if not del_mes.empty:
         hechos.append(
@@ -120,6 +148,20 @@ def hechos_meses(tablas: dict) -> list:
             (previo["mes_nombre"], bajo["mes_nombre"]),
         )
     return hechos
+
+
+def usd(v) -> str:
+    return _usd(v)
+
+
+def frase_probabilidad(tablas: dict) -> tuple:
+    """(claves, frase) para asegurar que la respuesta diga la probabilidad."""
+    p = tablas["mi_perfil"].iloc[0]
+    pct = _pct(p["prob_impago"])
+    return [
+        pct,
+        pct.replace("%", " %"),
+    ], f"En concreto, tu probabilidad de no pagar tu préstamo es de {pct}."
 
 
 def hechos_riesgo(tablas: dict) -> list:
@@ -239,6 +281,9 @@ def hechos_gasto(datos: pd.DataFrame) -> list:
         f"Tu ahorro acumulado típico a 12 meses pasaría de {_usd(hoy['ahorro_12m'])} "
         f"a {_usd(nuevo['ahorro_12m'])} ({_usd(abs(dif_ahorro))} "
         f"{'más' if dif_ahorro >= 0 else 'menos'}).",
+        f"Tu capacidad de ahorro típica del primer año pasaría de "
+        f"{_pct(hoy['capacidad_ahorro_12m'])} a {_pct(nuevo['capacidad_ahorro_12m'])} "
+        f"({_puntos(hoy['capacidad_ahorro_12m'], nuevo['capacidad_ahorro_12m'])}).",
         (
             f"Juntar tu fondo de emergencia te seguiría tomando {fondo_nuevo}."
             if fondo_nuevo == fondo_hoy
@@ -275,6 +320,77 @@ def hechos_meta(datos: pd.DataFrame) -> list:
         "de 36 meses."
     )
     return hechos
+
+
+_ESCENARIOS = (
+    (
+        re.compile(r"hipotec|casa propia|comprar (una )?casa", re.I),
+        "Crédito hipotecario",
+    ),
+    (
+        re.compile(r"(cambi\w*|nuevo|otro)\s+(de\s+)?(empleo|trabajo|chamba)", re.I),
+        "Cambio de empleo",
+    ),
+    (re.compile(r"negocio|emprend", re.I), "Abrir un negocio"),
+)
+
+
+def escenario_de(pregunta: str):
+    for patron, nombre in _ESCENARIOS:
+        if patron.search(pregunta or ""):
+            return nombre
+    return None
+
+
+def hechos_escenarios(tablas: dict, pregunta: str) -> list:
+    """Un escenario del simulador (crédito hipotecario, cambio de empleo o abrir
+    un negocio) contra seguir como hoy, ya comparado en Python."""
+    nombre = escenario_de(pregunta)
+    e = tablas["mis_escenarios"]
+    if nombre is None or e.empty:
+        return []
+    filas = e.set_index("escenario")
+    if nombre not in filas.index or "Sin cambios" not in filas.index:
+        return []
+    hoy, esc = filas.loc["Sin cambios"], filas.loc[nombre]
+
+    dif = esc["ahorro_12m"] - hoy["ahorro_12m"]
+    dif36 = esc["ahorro_36m"] - hoy["ahorro_36m"]
+    puntos = _puntos(hoy["prob_numeros_rojos"], esc["prob_numeros_rojos"])
+    return [
+        f"Escenario del simulador: {nombre.lower()}, comparado con seguir como hoy "
+        "(1,000 futuros posibles a 36 meses).",
+        f"Tu probabilidad de quedarte en números rojos en 36 meses pasaría de "
+        f"{_pct(hoy['prob_numeros_rojos'])} a {_pct(esc['prob_numeros_rojos'])}, o sea "
+        f"{puntos}{'' if 'igual' in puntos else ' de probabilidad'}. NO es la "
+        "probabilidad de dejar de pagar tu préstamo.",
+        f"Tu ahorro acumulado típico a 12 meses pasaría de {_usd(hoy['ahorro_12m'])} a "
+        f"{_usd(esc['ahorro_12m'])} ({_usd(abs(dif))} {'más' if dif >= 0 else 'menos'}); "
+        f"a 36 meses, de {_usd(hoy['ahorro_36m'])} a {_usd(esc['ahorro_36m'])} "
+        f"({_usd(abs(dif36))} {'más' if dif36 >= 0 else 'menos'}).",
+        _frase_fondo(hoy["meses_fondo_emergencia"], esc["meses_fondo_emergencia"]),
+    ]
+
+
+def _frase_fondo(hoy, esc) -> str:
+    """Cuánto tardaría en juntar su fondo de emergencia, dicho sin ambigüedad
+    (más meses = tarda más; nunca «reducirías tu fondo»)."""
+    if pd.isna(esc):
+        return "Con este escenario no juntarías tu fondo de emergencia en 36 meses."
+    if pd.isna(hoy):
+        return (
+            f"Con este escenario juntarías tu fondo de emergencia en {esc:.0f} meses; "
+            "hoy no lo juntarías en 36 meses."
+        )
+    a, b = round(hoy), round(esc)
+    if a == b:
+        return f"Juntar tu fondo de emergencia te seguiría tomando {b} meses."
+    d = b - a
+    return (
+        f"Juntar tu fondo de emergencia te tomaría {b} meses en lugar de {a} "
+        f"({abs(d)} {'mes' if abs(d) == 1 else 'meses'} {'más' if d > 0 else 'menos'}; "
+        f"{'tardarías más' if d > 0 else 'lo juntarías antes'})."
+    )
 
 
 _BAJO = re.compile(
@@ -355,4 +471,12 @@ def revisar_premisa(pregunta: str, tablas: dict) -> str:
                     f" Lo que más {'subió' if dif > 0 else 'bajó'} fue {cat}: de "
                     f"{_usd(t.loc[cat, previo['mes']])} a {_usd(t.loc[cat, mes['mes']])}."
                 )
+        tipos = _frase_tipos(
+            tablas["mis_gastos_categoria"],
+            previo["mes"],
+            mes["mes"],
+            (previo["mes_nombre"], mes["mes_nombre"]),
+        )
+        if tipos:
+            explicacion += " " + tipos
     return f"{inicio} {explicacion}"

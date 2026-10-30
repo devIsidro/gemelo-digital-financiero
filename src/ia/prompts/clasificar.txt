@@ -16,4 +16,6 @@ Ejemplos:
 "Y si recorto mis gastos?" -> {{"tipo": "gasto", "cambio_gasto": -0.1, "meta": null}}
 "¿Cuándo podría juntar 20 mil dólares?" -> {{"tipo": "meta", "cambio_gasto": null, "meta": 20000}}
 "¿Cuánto gasté en restaurantes en noviembre?" -> {{"tipo": "datos", "cambio_gasto": null, "meta": null}}
+"¿Qué pasa si saco un crédito hipotecario?" -> {{"tipo": "datos", "cambio_gasto": null, "meta": null}}
+"¿Y si mejor abro un negocio?" -> {{"tipo": "datos", "cambio_gasto": null, "meta": null}}
 "Hola, ¿cómo estás?" -> {{"tipo": "otro", "cambio_gasto": null, "meta": null}}

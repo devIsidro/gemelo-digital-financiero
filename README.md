@@ -69,8 +69,8 @@ la tarjeta de video NVIDIA) y **LangChain** con **Text-to-SQL** sobre la capa Go
 escribe la consulta, el asistente la valida y la ejecuta en DuckDB, y el modelo redacta la
 respuesta con esos datos. Las preguntas de «¿qué pasaría si...?» usan el simulador Monte Carlo.
 Código en `src/ia/`; detalle en `docs/fase5_asistente_ia.md`. Para medirlo con el modelo real:
-`docker compose exec dashboard-ejecutivo python -m src.ia.evaluar` (33 de 33 respuestas correctas en
-la última evaluación).
+`docker compose exec dashboard-ejecutivo python -m src.ia.evaluar` (75 de 75 respuestas correctas en
+la última evaluación, con 5 clientes).
 
 ## Cómo levantar el entorno local
 
@@ -153,7 +153,7 @@ sube a `develop`. Después, GitHub corre el lint y las pruebas.
 | 2. Ingesta y capa Bronze | Completa | `docs/entregables/` (diccionario de datos) |
 | 3. Silver, calidad y panel operativo | Completa | `src/spark/validate_silver.py`, `src/dashboard/operativo.py` |
 | 4. Capa Gold, KPIs y dashboard ejecutivo | Completa (v1) | `docs/fase4_diseno_capa_gold.md`, `docs/fase4_datos_simulados_ingreso_credito.md`, `docs/fase4_llave_sintetica_prestamos.md`, `docs/fase4_decisiones_kpis.md`, `docs/fase4_dashboard_ejecutivo.md` |
-| 5. IA y simulación | Lista: modelo de impago, simulador Monte Carlo y asistente de IA (33 de 33 en la evaluación con el modelo real) | `docs/fase5_modelo_impago.md`, `docs/fase5_revision_distribuciones.md`, `docs/fase5_simulador_monte_carlo.md`, `docs/fase5_asistente_ia.md` |
+| 5. IA y simulación | Lista: modelo de impago, simulador Monte Carlo y asistente de IA (75 de 75 en la evaluación con el modelo real) | `docs/fase5_modelo_impago.md`, `docs/fase5_revision_distribuciones.md`, `docs/fase5_simulador_monte_carlo.md`, `docs/fase5_asistente_ia.md` |
 | 6. Observabilidad y hardening | Pendiente | — |
 | 7. Cierre ejecutivo | Pendiente | — |
 

@@ -423,10 +423,59 @@ def test_respuesta_de_riesgo_siempre_dice_las_causas(tablas):
         )
 
     texto, prep = responder("Tu nivel de riesgo es Medio.")
-    claves, frase = prep.obligatorio
-    assert frase.startswith("Lo que más sube tu riesgo es que ")
-    assert texto == "Tu nivel de riesgo es Medio. " + frase
-    # Si el modelo ya las mencionó, no se repiten.
-    assert frase == "Lo que más sube tu riesgo es que tu tasa de interés es de 18.0%."
-    con_causa = "Tu nivel de riesgo es Medio por tu tasa de 18%."
-    assert responder(con_causa)[0] == con_causa
+    (_, prob), (_, causas) = prep.obligatorio
+    assert prob == "En concreto, tu probabilidad de no pagar tu préstamo es de 12.0%."
+    assert causas == "Lo que más sube tu riesgo es que tu tasa de interés es de 18.0%."
+    assert texto == f"Tu nivel de riesgo es Medio. {prob} {causas}"
+    # Si el modelo ya dijo la probabilidad y las causas, no se repiten.
+    completa = "Tu nivel de riesgo es Medio (12.0%) por tu tasa de 18%."
+    assert responder(completa)[0] == completa
+
+
+def test_escenarios_del_simulador_ya_comparados():
+    tablas = {
+        "mis_escenarios": pd.DataFrame(
+            {
+                "escenario": ["Sin cambios", "Crédito hipotecario"],
+                "prob_numeros_rojos": [0.05, 0.30],
+                "ahorro_12m": [10000.0, 4000.0],
+                "ahorro_36m": [30000.0, 9000.0],
+                "meses_fondo_emergencia": [5.0, float("nan")],
+            }
+        )
+    }
+    assert hc.escenario_de("¿Y si mejor abro un negocio?") == "Abrir un negocio"
+    assert hc.escenario_de("¿Me conviene cambiar de empleo?") == "Cambio de empleo"
+    assert hc.escenario_de("¿Cuántos meses llevo en mi empleo?") is None
+    texto = " ".join(hc.hechos_escenarios(tablas, "¿Qué pasa si saco una hipoteca?"))
+    assert "de 5.0% a 30.0%, o sea 25.0 puntos porcentuales más" in texto
+    assert "de $10,000 a $4,000 ($6,000 menos)" in texto
+    assert "no juntarías tu fondo de emergencia en 36 meses" in texto
+
+
+def test_hechos_separan_gasto_esencial_y_discrecional(tablas):
+    texto = " ".join(hc.hechos_meses(tablas))
+    assert "tu gasto esencial" in texto or "tu gasto discrecional" in texto
+
+
+def test_un_total_de_la_consulta_se_marca_como_el_dato_pedido(tablas):
+    modelos = _modelos(
+        ['{"tipo": "datos"}'],
+        ["SELECT SUM(gasto) AS gasto_total FROM mis_gastos_categoria"],
+    )
+    prep = ia.Asistente(modelos, tablas, INSUMO, SUP, CC).preparar(
+        "¿Cuánto he gastado en total?"
+    )
+    assert prep.hechos[0].startswith(
+        "Respuesta exacta a «¿Cuánto he gastado en total?»"
+    )
+    # Sin comparar meses no se agregan los hechos de mes contra mes.
+    assert not any("El último mes con datos" in h for h in prep.hechos)
+
+
+def test_fondo_de_emergencia_sin_ambiguedad():
+    assert hc._frase_fondo(4.0, 9.0) == (
+        "Juntar tu fondo de emergencia te tomaría 9 meses en lugar de 4 "
+        "(5 meses más; tardarías más)."
+    )
+    assert "lo juntarías antes" in hc._frase_fondo(7.0, 6.0)
