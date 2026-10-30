@@ -14,6 +14,10 @@ que nadie tenga que leer las respuestas, que cada una:
 Uso, con Docker y Ollama corriendo:
 
     docker compose exec dashboard-ejecutivo python -m src.ia.evaluar
+    docker compose exec dashboard-ejecutivo python -m src.ia.evaluar --libres
+
+La segunda forma corre solo las preguntas libres (otra redacción, preguntas
+de seguimiento y escenarios del simulador).
 
 Los resultados completos (respuesta, SQL, problemas) quedan en
 data/evaluacion_ia/resultados.csv.
@@ -133,6 +137,11 @@ def revisar_gasto(cambio):
             return []
         hoy, nuevo = prep.datos.iloc[0], prep.datos.iloc[1]
         problemas = []
+        promedio = float(tablas["mi_perfil"].iloc[0]["gasto_mensual_promedio"])
+        if abs(promedio - hoy["gasto_mensual"]) > 1 and contiene(texto, promedio):
+            problemas.append(
+                "usó el gasto promedio del historial y no el de la simulación"
+            )
         real = nuevo["gasto_mensual"] / hoy["gasto_mensual"] - 1
         if abs(real - cambio) > 0.005:
             problemas.append(f"simuló {real:+.0%} en lugar de {cambio:+.0%}")
@@ -238,6 +247,173 @@ PREGUNTAS_GENERALES = (
 
 
 # ---------------------------------------------------------------------------
+# Preguntas libres: otra redacción, seguimiento y escenarios del simulador
+# ---------------------------------------------------------------------------
+
+MESES = {
+    "ene": "enero",
+    "feb": "febrero",
+    "mar": "marzo",
+    "abr": "abril",
+    "may": "mayo",
+    "jun": "junio",
+    "jul": "julio",
+    "ago": "agosto",
+    "sep": "septiembre",
+    "oct": "octubre",
+    "nov": "noviembre",
+    "dic": "diciembre",
+}
+
+
+def menciona_mes(texto: str, mes_nombre: str) -> bool:
+    """«nov 2020» cuenta si la respuesta dice «noviembre» o «nov»."""
+    abrev = mes_nombre.split()[0]
+    baja = texto.lower()
+    return (
+        MESES.get(abrev, abrev) in baja or re.search(rf"\b{abrev}\b", baja) is not None
+    )
+
+
+def revisar_monto(valor: float, que: str):
+    """La respuesta debe traer esa cifra (o su valor absoluto: «gastaste $500
+    más de lo que ganaste» por un ahorro de -$500)."""
+
+    def revisar(texto, prep, tablas):
+        if contiene(texto, valor) or contiene(texto, abs(valor)):
+            return []
+        return [f"no dice {que} ({valor:,.0f})"]
+
+    return revisar
+
+
+def revisar_mes_y_monto(fila, que: str):
+    def revisar(texto, prep, tablas):
+        problemas = (
+            []
+            if menciona_mes(texto, fila["mes_nombre"])
+            else [f"no dice el mes correcto ({fila['mes_nombre']})"]
+        )
+        return problemas + revisar_monto(fila["gasto"], que)(texto, prep, tablas)
+
+    return revisar
+
+
+def revisar_escenario(nombre: str):
+    def revisar(texto, prep, tablas):
+        e = tablas["mis_escenarios"].set_index("escenario")
+        if nombre not in e.index:
+            return []
+        hoy, esc = _pct(e.loc["Sin cambios", "prob_numeros_rojos"]), _pct(
+            e.loc[nombre, "prob_numeros_rojos"]
+        )
+        if abs(esc - hoy) < 1:
+            return []  # casi no cambia: no es obligatorio mencionarla
+        return [
+            f"no dice la probabilidad de números rojos ({v}%)"
+            for v in (hoy, esc)
+            if not contiene(texto, v)
+        ]
+
+    return revisar
+
+
+def preguntas_libres(tablas: dict) -> list:
+    """Preguntas que alguien haría en la demo, con lo que debe contestar
+    calculado aparte. Algunas son de seguimiento: llevan la pregunta previa."""
+    m = tablas["mis_meses"].set_index(
+        tablas["mis_meses"]["mes_nombre"].str.split().str[0]
+    )
+    cat = tablas["mis_gastos_categoria"]
+    p = tablas["mi_perfil"].iloc[0]
+    esc = tablas["mis_escenarios"].set_index("escenario")
+    por_categoria = cat.groupby("categoria")["gasto"].sum().sort_values(ascending=False)
+    sin_parentesis = [c for c in por_categoria.index if "(" not in c]
+    ultimo = cat[cat["mes"] == cat["mes"].max()]
+    esencial = ultimo.loc[ultimo["tipo"] == "Esencial", "gasto"].sum()
+    hipoteca = "¿Qué pasaría si saco un crédito hipotecario?"
+
+    specs = [
+        (
+            "¿Cuánto gasté en octubre?",
+            {"datos"},
+            revisar_monto(m.loc["oct", "gasto"], "el gasto"),
+        ),
+        (
+            "¿Cuál fue mi mes con más gasto?",
+            {"datos"},
+            revisar_mes_y_monto(m.loc[m["gasto"].idxmax()], "el gasto de ese mes"),
+        ),
+        (
+            "¿Cuánto gano al mes?",
+            {"datos"},
+            revisar_monto(p["ingreso_mensual"], "el ingreso"),
+        ),
+        (
+            "¿Cuál es mi score de crédito?",
+            {"datos"},
+            revisar_monto(p["score_credito"], "el score"),
+        ),
+        (
+            "¿Cuánto pago de mi préstamo al mes?",
+            {"datos"},
+            revisar_monto(p["pago_mensual_prestamo"], "el pago mensual"),
+        ),
+        (
+            "¿Cuánto fue mi gasto esencial el último mes?",
+            {"datos"},
+            revisar_monto(esencial, "el gasto esencial"),
+        ),
+        ("dime mi riesgo", {"datos"}, revisar_riesgo),
+        (
+            "cuanto ahorre en diciembre",
+            {"datos"},
+            revisar_monto(m.loc["dic", "ahorro"], "el ahorro"),
+        ),
+        (hipoteca, {"datos"}, revisar_escenario("Crédito hipotecario")),
+        (
+            "¿Me conviene cambiar de empleo?",
+            {"datos"},
+            revisar_escenario("Cambio de empleo"),
+        ),
+        (
+            "¿Y si mejor abro un negocio?",
+            {"datos"},
+            revisar_escenario("Abrir un negocio"),
+            hipoteca,
+        ),
+        (
+            "¿y en diciembre?",
+            {"datos"},
+            revisar_monto(m.loc["dic", "gasto"], "el gasto de diciembre"),
+            "¿Cuánto gasté en noviembre?",
+        ),
+    ]
+    if sin_parentesis:
+        nombre = sin_parentesis[0]
+        specs.insert(
+            3,
+            (
+                f"¿Cuánto he gastado en {nombre.lower()} en total?",
+                {"datos"},
+                revisar_monto(por_categoria[nombre], f"el total de {nombre}"),
+            ),
+        )
+    if "Sin cambios" in esc.index:
+        specs.insert(
+            -3,
+            (
+                "¿Cuánto necesito juntar para mi fondo de emergencia?",
+                {"datos", "meta"},
+                revisar_monto(
+                    esc.loc["Sin cambios", "meta_fondo_emergencia"], "la meta del fondo"
+                ),
+            ),
+        )
+    return specs
+
+
+# ---------------------------------------------------------------------------
 # Clientes
 # ---------------------------------------------------------------------------
 
@@ -310,10 +486,21 @@ def elegir_clientes(base: Base) -> list:
 # ---------------------------------------------------------------------------
 
 
-def evaluar_pregunta(asistente, tablas, pregunta, esperados, revisar) -> dict:
+def evaluar_pregunta(
+    asistente, tablas, pregunta, esperados, revisar, antes: str = None
+) -> dict:
+    """Si hay pregunta previa («antes»), se hace primero y su respuesta entra
+    como historial: así se prueban las preguntas de seguimiento."""
     inicio = time.perf_counter()
     try:
-        texto, prep = asistente.responder(pregunta)
+        historial = None
+        if antes:
+            previa, _ = asistente.responder(antes)
+            historial = [
+                {"rol": "user", "texto": antes},
+                {"rol": "assistant", "texto": previa},
+            ]
+        texto, prep = asistente.responder(pregunta, historial)
     except Exception as err:  # el reporte debe seguir aunque una pregunta falle
         return {
             "tipo": "error",
@@ -333,6 +520,12 @@ def evaluar_pregunta(asistente, tablas, pregunta, esperados, revisar) -> dict:
     if prep.tipo != "otro" and not prep.respuesta_directa:
         baja = texto.lower()
         problemas += [f"dice «{p}»" for p in PROHIBIDAS if p in baja]
+        if re.search(r"ya tienes (la cantidad|el dinero|ese dinero|tu fondo)", baja):
+            problemas.append("dice que ya tiene un dinero que no sabemos si tiene")
+        if re.search(r"no hay un monto", baja):
+            problemas.append("dice que no hay un monto cuando sí lo hay")
+        if re.search(r"reduc\w* tu fondo", baja):
+            problemas.append("dice que se reduce el fondo de emergencia")
         if re.search(r"\b(mis?|me|reduzco)\b", baja):
             problemas.append("habla en primera persona")
         entradas = asistente.entradas_respuesta(prep)
@@ -357,7 +550,12 @@ def evaluar_pregunta(asistente, tablas, pregunta, esperados, revisar) -> dict:
     }
 
 
-def main() -> int:
+CLIENTES_LIBRES = 3  # a cuántos clientes se les hacen las preguntas libres
+
+
+def main(argv=None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    solo_libres = "--libres" in argv
     disponible, motivo = ia.ollama_disponible()
     if not disponible:
         print(f"Ollama no está listo ({motivo}). Revisa que el servicio esté corriendo")
@@ -368,28 +566,41 @@ def main() -> int:
     base = Base()
     modelos = ia.crear_modelos()
     clientes = elegir_clientes(base)
-    total = len(clientes) * len(PREGUNTAS) + len(PREGUNTAS_GENERALES)
+    if solo_libres:
+        clientes = clientes[:CLIENTES_LIBRES]
+
+    plan = []
+    for i, (motivo, fila) in enumerate(clientes):
+        tablas = base.tablas(fila)
+        preguntas = [] if solo_libres else list(PREGUNTAS)
+        if i == 0 and not solo_libres:
+            preguntas += list(PREGUNTAS_GENERALES)
+        if i < CLIENTES_LIBRES:
+            preguntas += preguntas_libres(tablas)
+        plan.append((motivo, fila, tablas, preguntas))
+    total = sum(len(p) for *_, p in plan)
     print(f"{len(clientes)} clientes, {total} preguntas.\n")
 
     filas = []
-    for i, (motivo, fila) in enumerate(clientes):
-        tablas = base.tablas(fila)
+    for motivo, fila, tablas, preguntas in plan:
         asistente = base.asistente(modelos, fila, tablas)
-        preguntas = PREGUNTAS + (PREGUNTAS_GENERALES if i == 0 else ())
         print(f"== {fila['cliente']} ({motivo})")
-        for pregunta, esperados, revisar in preguntas:
-            r = evaluar_pregunta(asistente, tablas, pregunta, esperados, revisar)
+        for spec in preguntas:
+            pregunta, esperados, revisar = spec[:3]
+            antes = spec[3] if len(spec) > 3 else None
+            r = evaluar_pregunta(asistente, tablas, pregunta, esperados, revisar, antes)
             filas.append(
                 {
                     "cliente": fila["cliente"],
                     "motivo": motivo,
-                    "pregunta": pregunta,
+                    "pregunta": pregunta if not antes else f"{antes} -> {pregunta}",
                     **r,
                 }
             )
             marca = "OK " if r["ok"] else "MAL"
             detalle = f"  -> {r['problemas']}" if r["problemas"] else ""
-            print(f"  [{marca}] {pregunta} ({r['segundos']} s){detalle}")
+            etiqueta = pregunta if not antes else f"(después de «{antes}») {pregunta}"
+            print(f"  [{marca}] {etiqueta} ({r['segundos']} s){detalle}")
 
     res = pd.DataFrame(filas)
     SALIDA.mkdir(parents=True, exist_ok=True)

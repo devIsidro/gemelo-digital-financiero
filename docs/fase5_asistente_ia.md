@@ -67,8 +67,18 @@ Pregunta ──> 1. Clasificar (Llama 3, JSON)
      no se usa el modelo para redactar, porque al agregar texto propio
      confundía los meses.
    - **Causas del riesgo:** si la respuesta sobre el nivel de riesgo no
-     menciona lo que más lo sube (tasa, pago contra ingreso, score…), Python
-     agrega esa oración al final.
+     dice la probabilidad exacta o lo que más lo sube (tasa, pago contra
+     ingreso, score…), Python agrega esa oración al final.
+   - **Escenarios del simulador** (crédito hipotecario, cambio de empleo,
+     abrir un negocio): Python compara el escenario contra seguir como hoy
+     (probabilidad de números rojos, ahorro a 12 y 36 meses, fondo de
+     emergencia) y el modelo lo redacta.
+   - **Gasto esencial y discrecional:** al explicar un cambio de un mes a otro
+     se separa el gasto esencial (súper, gasolina, salud…) del discrecional,
+     como pide el brief con la «variación de los gastos fijos».
+   - **Un solo resultado:** si la consulta SQL regresa un dato (un total, el
+     score), se le marca al modelo como la respuesta exacta, con la pregunta y
+     los filtros, para que no conteste con otra cifra.
 4. **Limpiar.** Antes de mostrar la respuesta, un filtro en Python quita
    muletillas como «Según los datos, …» o «ATENCIÓN:» y, si el cliente no
    pidió consejo, las recomendaciones genéricas («revisa tus gastos…»). El
@@ -120,7 +130,7 @@ del dashboard funciona igual.
 
 ## Pruebas
 
-38 pruebas automáticas en `tests/ia/` que no necesitan Ollama: usan modelos
+43 pruebas automáticas en `tests/ia/` que no necesitan Ollama: usan modelos
 falsos de LangChain con respuestas fijas. Revisan las tablas del cliente, que
 el validador bloquee SQL peligroso, que DuckDB no pueda leer archivos, la
 corrección del SQL cuando falla, las simulaciones de gasto y de meta, qué pasa
@@ -135,35 +145,62 @@ Llama 3 de verdad está `src/ia/evaluar.py`:
 
 ```
 docker compose exec dashboard-ejecutivo python -m src.ia.evaluar
+docker compose exec dashboard-ejecutivo python -m src.ia.evaluar --libres
 ```
 
-Elige varios clientes (el de la demo, el 0544, el de mayor y el de menor
-riesgo, el más ajustado y uno cuyo ahorro sí bajó el último mes), les hace
-seis preguntas a cada uno y tres generales («Hola», una pregunta que no es de
-finanzas y «Borra todos mis datos»). Cada respuesta se revisa sola:
+Hace **75 preguntas a 5 clientes**: el de la demo (0065), el 0544 (en
+diciembre gastó casi el doble de su ingreso), el de mayor riesgo (0814, 84.6%
+de probabilidad de impago), el de menor riesgo (0343) y uno cuyo ahorro sí
+bajó el último mes (0001).
+
+- **Las 4 preguntas del brief** y dos más (reducir el gasto 10%, la categoría
+  con más gasto del último mes), a los 5 clientes.
+- **Tres generales:** «Hola», una pregunta que no es de finanzas y «Borra
+  todos mis datos».
+- **Preguntas libres** (`--libres`), a 3 clientes: otra redacción («dime mi
+  riesgo», «cuanto ahorre en diciembre», sin acentos a propósito), totales
+  por categoría, datos del perfil y del préstamo, gasto esencial, fondo de
+  emergencia, los tres escenarios del simulador (crédito hipotecario, cambio
+  de empleo, abrir un negocio) y **preguntas de seguimiento** («¿Cuánto gasté
+  en noviembre?» → «¿y en diciembre?»).
+
+Cada respuesta se revisa sola:
 
 - que se entienda como el tipo correcto de pregunta;
 - que traiga las cifras clave correctas, calculadas aparte en Python;
 - que no tenga cifras inventadas: cada número de la respuesta tiene que estar
-  en lo que recibió el modelo o en la pregunta;
-- que no tenga muletillas prohibidas y que sea corta.
+  en lo que recibió el modelo o en la pregunta (así se detectaron restas mal
+  hechas por el modelo);
+- que no use el gasto del historial en una simulación, no afirme cosas que no
+  sabemos («ya tienes ese dinero») ni diga lo contrario de lo que pasa («se
+  reduce tu fondo» cuando tarda más en juntarlo);
+- que no tenga muletillas prohibidas, que hable de «tú» y que sea corta.
 
 El detalle (respuesta, SQL y problemas) queda en
-`data/evaluacion_ia/resultados.csv`.
+`data/evaluacion_ia/resultados.csv`. Además de la revisión automática, las
+respuestas de cada corrida se leyeron a mano.
 
 ### Resultados (29 de octubre de 2026, `llama3.1:8b` en una RTX 4060)
 
-| Corrida | Correctas | Qué se corrigió después |
-|---|---|---|
-| 1 | 27 de 33 (82%) | Confundía «la categoría en la que más gastó» con «la que más aumentó»; en una simulación usó el gasto promedio del perfil en lugar del de la simulación; contestó en primera persona; se le coló un «según los datos». Además, el revisor no leía cifras negativas (dos falsos errores). |
-| 2 | 31 de 33 (94%) | Restó por su cuenta los meses del fondo de emergencia (bien, pero sin verificar): ahora la diferencia se la da Python. El revisor exigía mencionar una probabilidad que no cambiaba. |
-| 3 | **33 de 33 (100%)** | — |
+| Corrida | Preguntas | Correctas | Qué se encontró y se corrigió |
+|---|---|---|---|
+| 1 | 33 | 27 (82%) | Confundía «la categoría en la que más gastó» con «la que más aumentó»; en una simulación usó el gasto del historial; contestó en primera persona; se le coló un «según los datos». El revisor no leía cifras negativas (dos falsos errores). |
+| 2 | 33 | 31 (94%) | Restó por su cuenta los meses del fondo de emergencia: ahora la diferencia la calcula Python. |
+| 3 | 33 | **33 (100%)** | — |
+| 4 | 42 libres | 33 (79%) | Restaba mal en los escenarios (p. ej. $20,740 en lugar de $11,740); contestaba el gasto de un mes cuando le pedían el total por categoría. Ahora Python da las diferencias y marca el resultado exacto de la consulta. |
+| 5 | 42 libres | 38 (90%) | Decía «no hay información» de un total que sí tenía; daba el rango de riesgo y no la probabilidad; calculó mal el fondo de emergencia. |
+| 6 | 75 | 74 (99%) | En la lectura a mano: «reducirías tu fondo» cuando tardaría más; «ya tienes la cantidad» (no lo sabemos); de nuevo el gasto del historial en una simulación. |
+| 7 | 75 | 74 (99%) | En la lectura a mano: una respuesta confusa sobre el monto del fondo y «1.1%» en lugar de «1.1 puntos». |
+| 8 | 75 | **75 (100%)** | — |
 
-Cinco clientes: el de la demo (0065), el 0544 (en diciembre gastó casi el doble de su ingreso), el de
-mayor riesgo (0814, 84.6% de probabilidad de impago), el de menor riesgo
-(0343) y uno cuyo ahorro sí bajó el último mes (0001). Tiempo promedio por
-respuesta: 4.5 segundos (la primera tarda más porque el modelo se carga en la
-tarjeta de video).
+Tiempo promedio por respuesta: 3.5 segundos (la primera tarda más porque el
+modelo se carga en la tarjeta de video).
+
+**Lo que enseñó la evaluación:** casi todos los errores del modelo fueron
+restas, confundir dos cifras parecidas o afirmar algo que no estaba en los
+datos. Por eso el diseño final no le deja ninguna cuenta: Python calcula y
+verifica cada comparación, el modelo solo la redacta, y la evaluación se
+vuelve a correr después de cada cambio.
 
 ## Limitaciones
 

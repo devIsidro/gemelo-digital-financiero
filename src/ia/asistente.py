@@ -380,6 +380,40 @@ def limpiar_stream(partes, consejos: bool = False):
         yield limpio[enviado:]
 
 
+COMPARA_MESES = (
+    "por qué",
+    "porque",
+    "por que",
+    "capacidad",
+    "ahorr",
+    "subi",
+    "baj",
+    "aument",
+    "disminu",
+    "cambi",
+    "último mes",
+    "ultimo mes",
+    "mes pasado",
+    "compar",
+)
+
+
+def respuesta_directa_sql(datos: pd.DataFrame, pregunta: str, sql: str = None) -> str:
+    """Si la consulta regresó un solo renglón (un total, un promedio, un dato
+    del perfil), ese es el dato que pidió el cliente: se le marca al modelo,
+    junto con la pregunta y los filtros de la consulta (p. ej. 'Viajes'), para
+    que no diga que no tiene la información."""
+    if datos is None or len(datos) != 1 or len(datos.columns) > 4:
+        return ""
+    filtros = sorted(set(re.findall(r"'([^']{2,40})'", sql or "")))
+    filtro = f" (filtrado por: {', '.join(filtros)})" if filtros else ""
+    return (
+        f"Respuesta exacta a «{pregunta}»{filtro}: "
+        + formatear_para_modelo(datos).lstrip("- ")
+        + ". Contesta con este dato."
+    )
+
+
 @dataclass
 class Preparacion:
     """Lo que se recuperó para responder (se muestra en «Cómo lo calculé»)."""
@@ -395,9 +429,10 @@ class Preparacion:
     # Respuesta completa escrita en Python (pregunta con un dato equivocado):
     # se muestra tal cual, sin pasar por el modelo.
     respuesta_directa: str = ""
-    # (claves, frase): si la respuesta no menciona ninguna clave, se agrega la
-    # frase al final. Así las causas del riesgo siempre aparecen.
-    obligatorio: tuple = None
+    # [(claves, frase), …]: si la respuesta no menciona ninguna clave de un par,
+    # se agrega su frase al final. Así la probabilidad y las causas del riesgo
+    # siempre aparecen.
+    obligatorio: list = None
 
 
 class Asistente:
@@ -463,6 +498,8 @@ class Asistente:
         tipo = str(plan.get("tipo", "datos")).strip().lower()
         if tipo not in TIPOS:
             tipo = "datos"
+        if tipo == "gasto" and hc.escenario_de(pregunta):
+            tipo = "datos"  # «¿y si abro un negocio?» es un escenario, no un % de gasto
         if tipo in ("gasto", "meta") and self.insumo is None:
             tipo = "datos"  # sin datos del simulador se contesta con lo que hay
         cambio = _numero(plan.get("cambio_gasto"))
@@ -522,24 +559,46 @@ class Asistente:
         if prep.tipo == "gasto":
             return hc.hechos_gasto(prep.datos)
         if prep.tipo == "meta":
-            return hc.hechos_meta(prep.datos)
+            hechos = hc.hechos_meta(prep.datos)
+            if prep.nota:  # no dijo monto: la meta es su fondo de emergencia
+                monto = hc.usd(prep.datos.iloc[0]["meta"])
+                hechos.insert(
+                    0,
+                    f"Para tu fondo de emergencia necesitas juntar {monto} (6 meses de tu "
+                    "gasto típico). Ya está calculado: usa este monto, no lo calcules tú "
+                    "y empieza la respuesta con él. No sabemos "
+                    "cuánto tienes ahorrado hoy (la simulación empieza en $0), así que "
+                    "nunca digas que ya lo tienes.",
+                )
+            return hechos
         if prep.tipo != "datos":
             return []
+        escenario = hc.hechos_escenarios(self.tablas, prep.pregunta)
+        if escenario:
+            return escenario
         texto = prep.pregunta.lower()
         columnas = set(prep.datos.columns) if prep.datos is not None else set()
         de_riesgo = bool(columnas & {"factor", "nivel_riesgo", "prob_impago"}) or any(
             p in texto for p in ("riesgo", "impago", "préstamo", "prestamo", "pagar")
         )
-        de_meses = bool(
-            columnas & {"mes", "mes_nombre", "capacidad_ahorro", "gasto", "ahorro"}
-        ) or any(p in texto for p in ("mes", "ahorr", "gast", "capacidad"))
+        # Las comparaciones entre meses solo cuando la pregunta compara o pide
+        # una explicación; si no, el modelo las usa en lugar del dato pedido
+        # (p. ej. contesta el gasto de un mes cuando le preguntan el total).
+        de_meses = any(p in texto for p in COMPARA_MESES)
         hechos = hc.hechos_riesgo(self.tablas) if de_riesgo else []
-        if de_riesgo:
+        if "riesgo" in texto or "impago" in texto:
+            # Solo si preguntan por el riesgo (no por el pago o el préstamo).
             sube, _, claves = hc.factores_riesgo(self.tablas)
-            prep.obligatorio = (claves, sube) if sube else None
-        if de_meses or not de_riesgo:
+            prob = hc.frase_probabilidad(self.tablas)
+            prep.obligatorio = [prob] + ([(claves, sube)] if sube else [])
+        if de_meses:
             hechos += hc.hechos_meses(self.tablas)
-        return hechos
+        directo = (
+            ""
+            if de_riesgo
+            else respuesta_directa_sql(prep.datos, prep.pregunta, prep.sql)
+        )
+        return ([directo] if directo else []) + hechos
 
     def _recuperar(self, pregunta: str, historial: list = None) -> Preparacion:
         plan = self.clasificar(pregunta, historial)
@@ -588,7 +647,16 @@ class Asistente:
     # -- 3. Redactar --------------------------------------------------------
     def entradas_respuesta(self, prep: Preparacion, historial: list = None) -> dict:
         return {
-            "perfil": formatear_perfil(self.tablas["mi_perfil"]),
+            "perfil": formatear_perfil(
+                # En simulaciones, el gasto promedio del historial confunde al
+                # modelo con el gasto base del simulador: se quita del perfil.
+                self.tablas["mi_perfil"].drop(
+                    columns=["gasto_mensual_promedio", "ahorro_mensual"],
+                    errors="ignore",
+                )
+                if prep.tipo in ("gasto", "meta")
+                else self.tablas["mi_perfil"]
+            ),
             "origen": prep.origen,
             "datos": formatear_para_modelo(prep.datos),
             "nota": f"\nNota: {prep.nota}\n" if prep.nota else "",
@@ -618,10 +686,10 @@ class Asistente:
         ):
             texto += parte
             yield parte
-        if prep.obligatorio:
-            claves, frase = prep.obligatorio
+        for claves, frase in prep.obligatorio or []:
             if not any(c in texto for c in claves):
                 yield ("" if texto.endswith((" ", "\n")) or not texto else " ") + frase
+                texto += " " + frase
 
     def responder(self, pregunta: str, historial: list = None) -> tuple:
         """(texto, preparación) de una sola vez."""
