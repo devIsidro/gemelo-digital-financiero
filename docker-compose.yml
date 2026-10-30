@@ -1,4 +1,13 @@
+# Alertas por correo (Fase 6). Se configuran en .env; vacías = solo panel.
+x-alertas-env: &alertas-env
+  ALERTAS_SMTP_USUARIO: ${ALERTAS_SMTP_USUARIO:-}
+  ALERTAS_SMTP_CONTRASENA: ${ALERTAS_SMTP_CONTRASENA:-}
+  ALERTAS_CORREO_PARA: ${ALERTAS_CORREO_PARA:-}
+
 x-airflow-common-env: &airflow-common-env
+  <<: *alertas-env
+  # El último paso del DAG (revisar_slas) lee el historial de corridas.
+  AIRFLOW_DB_URL: postgresql://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}
   AIRFLOW__CORE__EXECUTOR: LocalExecutor
   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres/${POSTGRES_DB:-airflow}
   AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:-}
@@ -16,6 +25,7 @@ x-airflow-common-volumes: &airflow-common-volumes
 services:
   postgres:
     image: postgres:15
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-airflow}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
@@ -73,8 +83,10 @@ services:
 
   airflow-webserver:
     image: gemelo-digital-financiero/airflow-pyspark:2.10.2
+    restart: unless-stopped
     depends_on:
-      - airflow-init
+      airflow-init:
+        condition: service_completed_successfully
     environment: *airflow-common-env
     ports:
       - "8080:8080"
@@ -88,26 +100,44 @@ services:
 
   airflow-scheduler:
     image: gemelo-digital-financiero/airflow-pyspark:2.10.2
+    restart: unless-stopped
     depends_on:
-      - airflow-init
+      airflow-init:
+        condition: service_completed_successfully
     environment: *airflow-common-env
     volumes: *airflow-common-volumes
     command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 15s
+      retries: 5
 
   dashboard:
     build:
       context: .
       dockerfile: Dockerfile.dashboard
     image: gemelo-digital-financiero/dashboard:1.0
+    restart: unless-stopped
     ports:
       - "8501:8501"
     environment:
+      <<: *alertas-env
       # El panel lee el historial de corridas del DAG en la base de Airflow.
       AIRFLOW_DB_URL: postgresql://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}
+      # Fase 6: el panel muestra si el modelo del asistente está activo.
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODELO: ${OLLAMA_MODELO:-llama3.1:8b}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     volumes:
       - ./data:/app/data
+    healthcheck: &salud-streamlit
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Dashboard Ejecutivo (Fase 4): misma imagen, otro panel. Solo lee la capa
   # Gold y Silver de ./data, no necesita la base de Airflow.
@@ -116,6 +146,7 @@ services:
       context: .
       dockerfile: Dockerfile.dashboard
     image: gemelo-digital-financiero/dashboard-ejecutivo:1.0
+    restart: unless-stopped
     command: ["src/dashboard/ejecutivo.py"]
     ports:
       - "8502:8501"
@@ -123,8 +154,11 @@ services:
       # Asistente de IA (Fase 5): modelo local en el servicio ollama.
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODELO: ${OLLAMA_MODELO:-llama3.1:8b}
+    depends_on:
+      - ollama
     volumes:
       - ./data:/app/data
+    healthcheck: *salud-streamlit
 
   # Asistente de IA (Fase 5): Llama 3 corriendo localmente con Ollama, en la
   # tarjeta de video NVIDIA. El modelo se descarga una sola vez (~5 GB) con:
@@ -132,6 +166,12 @@ services:
   # y se guarda en el volumen ollama-data.
   ollama:
     image: ollama/ollama:0.40.3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     ports:
       - "11434:11434"
     volumes:

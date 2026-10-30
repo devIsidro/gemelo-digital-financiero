@@ -335,8 +335,12 @@ def kpi(etiqueta: str, valor: str, nota: str, ico: str, acento: str = ELECTRIC) 
     )
 
 
-def validacion(nombre: str, ok: bool, detalle: str) -> str:
-    color, simbolo = (LIME, "✓") if ok else (MANDARIN, "✕")
+def validacion(nombre: str, ok, detalle: str) -> str:
+    """ok=True (verde ✓), False (naranja ✕) o None (gris –, sin datos)."""
+    if ok is None:
+        color, simbolo = GRIS_3, "–"
+    else:
+        color, simbolo = (LIME, "✓") if ok else (MANDARIN, "✕")
     return (
         f'<div class="gd-val"><span class="gd-val-marca" style="background:{color}">'
         f"{simbolo}</span>"

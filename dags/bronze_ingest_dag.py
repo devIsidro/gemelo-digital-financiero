@@ -25,7 +25,15 @@ Pasos encadenados (Fase 2 a Fase 4):
  11. simulador_monte_carlo -> proyecta el flujo de efectivo y el ahorro de
                             cada cliente a 36 meses en 4 escenarios, con
                             bandas de confianza (necesita 9).
+ 12. revisar_slas       -> (Fase 6) al final de todo, aunque algo haya
+                            fallado: revisa los SLA y la consistencia entre
+                            capas y manda las alertas (panel y correo).
+
+Además, si cualquier paso falla después de sus reintentos, se manda una
+alerta en ese momento (on_failure_callback). Ver src/observabilidad/.
 """
+
+import os
 
 from datetime import datetime, timedelta
 
@@ -44,10 +52,31 @@ from src.spark.silver_transactions import run_silver_job
 from src.spark.simular_perfil_financiero import run_simulacion_job
 from src.spark.validate_silver import imprimir_reporte, validar_silver
 
+
+def alerta_paso_fallido(context):
+    """Alerta inmediata cuando un paso falla después de sus reintentos."""
+    from src.observabilidad import alertas as al
+
+    ti = context["task_instance"]
+    error = str(context.get("exception") or "sin detalle").splitlines()[0][:200]
+    estado = al.notificar(
+        [
+            al.Alerta(
+                "crítica",
+                f"Falló el paso {ti.task_id}",
+                f"Falló después de sus reintentos: {error}. Registro: {ti.log_url}",
+                f"paso {ti.task_id}",
+            )
+        ]
+    )
+    print(f"Alerta del paso {ti.task_id}: {estado}")
+
+
 default_args = {
     "owner": "jorge",
     "retries": 3,
     "retry_delay": timedelta(minutes=5),
+    "on_failure_callback": alerta_paso_fallido,
 }
 
 RAW_CSV_PATH = "data/raw/fraudTest.csv"
@@ -177,6 +206,43 @@ def simulador_monte_carlo(**context):
     )
 
 
+def url_base_airflow() -> str:
+    """La base de Airflow en formato que entiende psycopg2."""
+    return os.environ.get("AIRFLOW_DB_URL") or os.environ.get(
+        "AIRFLOW__DATABASE__SQL_ALCHEMY_CONN", ""
+    ).replace("postgresql+psycopg2://", "postgresql://")
+
+
+def revisar_slas(**context):
+    """SLA, consistencia entre capas y alertas de esta corrida (Fase 6)."""
+    from datetime import timezone
+
+    from src.observabilidad import alertas as al
+    from src.observabilidad.revisar import imprimir, revisar
+
+    dag_run = context["dag_run"]
+    minutos = (datetime.now(timezone.utc) - dag_run.start_date).total_seconds() / 60
+    fallidos = [
+        ti.task_id
+        for ti in dag_run.get_task_instances()
+        if ti.task_id != "revisar_slas" and ti.state in ("failed", "upstream_failed")
+    ]
+    revision = revisar(
+        url_airflow=url_base_airflow(),
+        corrida_actual={"minutos": minutos, "fallidos": fallidos},
+    )
+    imprimir(revision)
+    estado = al.notificar(al.de_slas(revision["resultados"]))
+    print(f"Alertas de SLA: {estado}")
+    if fallidos:
+        # Este es el último paso: si terminara bien, Airflow marcaría la
+        # corrida como exitosa aunque otros pasos hayan fallado.
+        raise RuntimeError(
+            "La corrida tuvo pasos fallidos (ya se mandó su alerta): "
+            + ", ".join(fallidos)
+        )
+
+
 with DAG(
     dag_id="bronze_ingest",
     description="Pipeline Bronze -> Silver -> calidad -> Gold (transacciones y prestamos)",
@@ -256,3 +322,16 @@ with DAG(
     )
     # El simulador parte de los KPIs (ingreso simulado) y del gasto real
     kpis_task >> simulador_task
+
+    # Fase 6: corre al final aunque algún paso haya fallado (all_done), para
+    # que las alertas salgan justo cuando algo sale mal. Sin reintentos: si la
+    # revisión misma falla, que se vea de inmediato.
+    revisar_task = PythonOperator(
+        task_id="revisar_slas",
+        python_callable=revisar_slas,
+        trigger_rule="all_done",
+        retries=0,
+        # Sus fallas ya se reportan arriba; no duplicar la alerta.
+        on_failure_callback=None,
+    )
+    [validate_task, simulador_task, modelo_task] >> revisar_task

@@ -6,17 +6,20 @@ Vista para el equipo de Data Engineering: muestra la salud del pipeline
 completo, de los datos crudos a los KPIs y el modelo de impago:
 
   1. Estado general y cifras principales.
-  2. Los 11 pasos del DAG bronze_ingest en su última corrida e historial de
+  2. Los 12 pasos del DAG bronze_ingest en su última corrida e historial de
      corridas (de aquí sale el KPI tasa_exito_ingesta del catálogo).
   3. Validaciones de calidad de transacciones y préstamos.
   4. Volumen de transacciones por día y por categoría.
   5. Salud de la capa Gold y del modelo de impago.
+  6. (Fase 6) SLA, alertas recientes, consistencia entre capas y el
+     asistente de IA.
 
 Es distinto del Dashboard Ejecutivo (src/dashboard/ejecutivo.py), que es para negocio.
 
 Corre con: streamlit run src/dashboard/operativo.py
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -28,8 +31,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.dashboard import datos  # noqa: E402
 from src.dashboard import estilo as e  # noqa: E402
+from src.observabilidad import alertas as al  # noqa: E402
+from src.observabilidad import slas  # noqa: E402
+from src.observabilidad.consistencia import revisar_consistencia  # noqa: E402
 
 RUTAS = datos.Rutas(Path("data"))
+RUTA_EVALUACION_IA = Path("data/evaluacion_ia/resultados.csv")
 
 st.set_page_config(
     page_title="Panel Operativo — Gemelo Digital Financiero",
@@ -92,6 +99,23 @@ def cargar_airflow():
         return None, None, str(exc).splitlines()[0][:160]
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def cargar_consistencia():
+    return revisar_consistencia(RUTAS)
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def cargar_alertas():
+    return al.historial(n=6)
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def estado_ollama():
+    from src.ia import asistente as ia
+
+    return ia.ollama_disponible(timeout=2)
+
+
 def html(contenido: str):
     st.markdown(contenido, unsafe_allow_html=True)
 
@@ -140,6 +164,15 @@ if error_datos:
 
 corridas, pasos, error_airflow = cargar_airflow()
 gold = cargar_gold()
+chequeos = cargar_consistencia()
+evaluacion_ia = slas.leer_evaluacion(RUTA_EVALUACION_IA)
+resultados_sla = slas.evaluar(
+    corridas if corridas is not None and len(corridas) else None,
+    list(val_tx) + list(val_loans or []),
+    chequeos,
+    evaluacion_ia,
+    pd.Timestamp.now(tz=datos.ZONA_HORARIA),
+)
 
 # ---------------------------------------------------------------------------
 # Estado general
@@ -163,6 +196,14 @@ if ultima_terminada is not None and ultima_terminada["state"] == "failed":
     motivos.append(
         "La última corrida terminada del DAG falló. Revisa abajo el paso marcado "
         "como «Falló» y su registro en Airflow."
+    )
+
+sla_fallan = [f"«{r.nombre}»" for r in resultados_sla if r.cumple is False]
+if sla_fallan:
+    motivos.append(
+        f"No se cumple{'n' if len(sla_fallan) > 1 else ''} el SLA "
+        + ", ".join(sla_fallan)
+        + ". Detalle en «Acuerdos de servicio» y en las alertas."
     )
 
 if motivos:
@@ -257,6 +298,71 @@ for i, (col, tarjeta) in enumerate(zip(st.columns(5, gap="medium"), tarjetas)):
 st.write("")
 
 # ---------------------------------------------------------------------------
+# SLA y alertas (Fase 6)
+# ---------------------------------------------------------------------------
+
+col_sla, col_alertas = st.columns([3, 2], gap="medium")
+
+with col_sla:
+    with st.container(key="caja_sla"):
+        medidos = [r for r in resultados_sla if r.cumple is not None]
+        cumplen = sum(1 for r in medidos if r.cumple)
+        html(
+            e.titulo_caja(
+                "Acuerdos de servicio (SLA)",
+                f"{cumplen} de {len(medidos)} se cumplen. Se revisan aquí y al final de "
+                "cada corrida del DAG, que manda una alerta si alguno falla.",
+                "calidad",
+            )
+        )
+        html(
+            "".join(
+                e.validacion(r.nombre, r.cumple, f"{r.real} · objetivo {r.objetivo}")
+                for r in resultados_sla
+            )
+        )
+        with st.expander("Cómo se mide cada SLA"):
+            for r in resultados_sla:
+                st.markdown(f"**{r.nombre}.** {r.detalle}")
+
+with col_alertas:
+    with st.container(key="caja_alertas"):
+        correo = (
+            f"se mandan por correo a {al.config_correo()['para']}"
+            if al.config_correo()
+            else "correo sin configurar: solo se muestran aquí"
+        )
+        html(
+            e.titulo_caja(
+                "Alertas recientes",
+                f"Pasos que fallaron y SLA que no se cumplieron ({correo}).",
+                "alerta",
+            )
+        )
+        historial = cargar_alertas()
+        if historial.empty:
+            html(e.aviso("Sin alertas: todo en orden.", info=True))
+        else:
+            filas = []
+            for _, a in historial.iterrows():
+                critica = a["nivel"] == "crítica"
+                fecha = (
+                    a["fecha"].strftime("%d/%m %H:%M") if pd.notna(a["fecha"]) else ""
+                )
+                filas.append(
+                    '<div class="gd-val">'
+                    '<span class="gd-val-marca" style="background:'
+                    f'{e.MANDARIN if critica else e.CANARY}">{"✕" if critica else "▲"}'
+                    "</span>"
+                    f'<span class="gd-val-nombre">{e.escape(a["titulo"])}</span>'
+                    f'<span class="gd-val-det">{fecha} h · correo: '
+                    f"{e.escape(str(a['correo']))}</span></div>"
+                )
+            html("".join(filas))
+
+st.write("")
+
+# ---------------------------------------------------------------------------
 # Pipeline: última corrida e historial
 # ---------------------------------------------------------------------------
 
@@ -284,7 +390,12 @@ with col_pipe:
         else:
             numero = 1
             bloques = []
-            for etapa in ["Transacciones", "Préstamos", "Gold y modelo"]:
+            for etapa in [
+                "Transacciones",
+                "Préstamos",
+                "Gold y modelo",
+                "Observabilidad",
+            ]:
                 filas = pasos[pasos["etapa"] == etapa]
                 cajas = []
                 for _, p in filas.iterrows():
@@ -517,6 +628,83 @@ with col_cat:
             .properties(height=260)
         )
         st.altair_chart(con_tema(cat), width="stretch", theme=None)
+
+st.write("")
+
+# ---------------------------------------------------------------------------
+# Consistencia entre capas y asistente de IA (Fase 6)
+# ---------------------------------------------------------------------------
+
+col_cons, col_ia = st.columns([3, 2], gap="medium")
+
+with col_cons:
+    with st.container(key="caja_consistencia"):
+        medidos = [c for c in chequeos if c.ok is not None]
+        html(
+            e.titulo_caja(
+                "Consistencia entre capas",
+                f"{sum(1 for c in medidos if c.ok)} de {len(medidos)} revisiones cuadran: "
+                "nada se pierde ni se inventa de Bronze a Silver a Gold.",
+                "capas",
+            )
+        )
+        html("".join(e.validacion(c.nombre, c.ok, c.detalle) for c in chequeos))
+
+with col_ia:
+    with st.container(key="caja_ia"):
+        html(
+            e.titulo_caja(
+                "Asistente de IA",
+                "Última evaluación automática con el modelo real "
+                "(python -m src.ia.evaluar).",
+                "ia",
+            )
+        )
+        listo, motivo = estado_ollama()
+        servicio = {
+            "": ("Activo", e.LIME),
+            "sin_servicio": ("Apagado", e.MANDARIN),
+            "sin_modelo": ("Sin modelo", e.MANDARIN),
+        }[motivo]
+        if evaluacion_ia:
+            pct = evaluacion_ia["correctas"] / evaluacion_ia["total"] * 100
+            correctas = (
+                f"{evaluacion_ia['correctas']} de {evaluacion_ia['total']}",
+                f"{pct:.0f}% · {evaluacion_ia['fecha']:%d/%m/%Y %H:%M} h",
+                e.LIME if pct >= slas.OBJETIVOS["ia_correctas_pct"] else e.MANDARIN,
+            )
+            tiempo = (
+                f"{evaluacion_ia['segundos']:.1f} s",
+                "Promedio por respuesta",
+                (
+                    e.LIME
+                    if evaluacion_ia["segundos"] <= slas.OBJETIVOS["ia_segundos"]
+                    else e.MANDARIN
+                ),
+            )
+        else:
+            correctas = ("—", "Todavía no se corre la evaluación", e.GRIS_3)
+            tiempo = ("—", "Todavía no se corre la evaluación", e.GRIS_3)
+        mini_ia = [
+            e.kpi(
+                "Respuestas correctas",
+                correctas[0],
+                correctas[1],
+                "calidad",
+                correctas[2],
+            ),
+            e.kpi("Tiempo de respuesta", tiempo[0], tiempo[1], "reloj", tiempo[2]),
+            e.kpi(
+                "Modelo local (Ollama)",
+                servicio[0],
+                os.environ.get("OLLAMA_MODELO", "llama3.1:8b"),
+                "ia",
+                servicio[1],
+            ),
+        ]
+        for col, tarjeta in zip(st.columns(3, gap="small"), mini_ia):
+            with col:
+                html(tarjeta)
 
 st.write("")
 

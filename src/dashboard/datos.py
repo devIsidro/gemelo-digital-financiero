@@ -40,6 +40,7 @@ PASOS = [
     ("calcular_kpis", "KPIs financieros", "Gold y modelo"),
     ("modelo_prob_impago", "Modelo de impago", "Gold y modelo"),
     ("simulador_monte_carlo", "Simulador Monte Carlo", "Gold y modelo"),
+    ("revisar_slas", "SLA, consistencia y alertas", "Observabilidad"),
 ]
 
 
@@ -62,6 +63,10 @@ class Rutas:
     @property
     def silver_loans(self):
         return self.base / "silver" / "loan_default"
+
+    @property
+    def gold_perfil(self):
+        return self.base / "gold" / "perfil_cliente"
 
     @property
     def gold_kpis(self):
