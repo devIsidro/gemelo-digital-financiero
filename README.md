@@ -171,7 +171,7 @@ sube a `develop`. Después, GitHub corre el lint y las pruebas.
 | 4. Capa Gold, KPIs y dashboard ejecutivo | Completa (v1) | `docs/fase4_diseno_capa_gold.md`, `docs/fase4_datos_simulados_ingreso_credito.md`, `docs/fase4_llave_sintetica_prestamos.md`, `docs/fase4_decisiones_kpis.md`, `docs/fase4_dashboard_ejecutivo.md` |
 | 5. IA y simulación | Lista: modelo de impago, simulador Monte Carlo y asistente de IA (75 de 75 en la evaluación con el modelo real) | `docs/fase5_modelo_impago.md`, `docs/fase5_revision_distribuciones.md`, `docs/fase5_simulador_monte_carlo.md`, `docs/fase5_asistente_ia.md` |
 | 6. Observabilidad y hardening | Lista: 6 SLA, alertas en el panel y por correo, consistencia Bronze → Silver → Gold, healthchecks | `docs/fase6_observabilidad.md` |
-| 7. Cierre ejecutivo | Pendiente | — |
+| 7. Cierre ejecutivo | En curso: desarrollo cerrado con visto bueno de BBVA; presentación final el 30 de noviembre de 2026 en Torre BBVA | `docs/entregables/reporte_cierre_gemelo_digital_financiero.docx` |
 
 Decisiones clave tomadas con BBVA (detalle en `docs/`):
 
