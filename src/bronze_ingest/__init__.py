@@ -1,1 +1,1 @@
-# Scripts de ingesta cruda hacia la Capa Bronze (lectura de fuentes, escritura a MinIO/Delta).
+# Scripts de ingesta cruda hacia la Capa Bronze (lectura de fuentes y escritura en Parquet).

@@ -69,7 +69,7 @@ def _kpis(spark, clientes):
 
 
 def test_capacidad_ahorro_usa_el_ingreso_simulado(spark):
-    """Decisión con Eduardo: ahorro y flujo usan el ingreso simulado, aunque
+    """Decisión con BBVA: ahorro y flujo usan el ingreso simulado, aunque
     el ingreso de la fuente sea distinto."""
     k = _kpis(spark, [_cliente("a", gasto=6000, ingreso_simulado=10000)])["a"]
     assert k["capacidad_ahorro"] == pytest.approx(0.4)

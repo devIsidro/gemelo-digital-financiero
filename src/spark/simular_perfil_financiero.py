@@ -1,6 +1,6 @@
 """
 Job de PySpark: generación del ingreso mensual SIMULADO por cliente
-(Fase 4 — Opción A, decisión con Eduardo del 11 sep 2026).
+(Fase 4 — Opción A, decisión con BBVA del 11 sep 2026).
 
 Los datasets de income/credit_history (Loan Default Prediction, Financial
 Transactions - Expenses & Income) no comparten un cliente real con el
@@ -9,7 +9,7 @@ forma controlada y reproducible (no al azar), un ingreso mensual simulado
 por cliente (`cc_num`), siguiendo exactamente la fórmula documentada en
 `docs/fase4_datos_simulados_ingreso_credito.md`.
 
-Uso del ingreso simulado (decisión con Eduardo, oct 2026): SOLO para
+Uso del ingreso simulado (decisión con BBVA, oct 2026): SOLO para
 capacidad_ahorro y flujo_efectivo_mensual. El modelo de impago y el DTI usan
 el ingreso que viene en el dataset Loan Default (ingreso_mensual_fuente), y
 los dos conceptos se mantienen separados en kpis_cliente.

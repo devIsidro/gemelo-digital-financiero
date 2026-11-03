@@ -1,7 +1,7 @@
 # Catálogo preliminar de KPIs — Fase 1 / Semana 2 (Análisis del problema)
 # Cada KPI se calculará en la Capa Gold a partir de datos ya limpios en Silver.
 #
-# Nota (Fase 4, decisión con Eduardo del 11 sep 2026): los datasets de income
+# Nota (Fase 4, decisión con BBVA del 11 sep 2026): los datasets de income
 # y credit_history no comparten un cliente real con el dataset de
 # transacciones. Los KPIs marcados con "nota_fase4" abajo se calcularán con
 # un ingreso e historial crediticio simulados (Opción A), ver
@@ -66,7 +66,7 @@ kpis:
     capa: "Silver -> Gold"
     nota_fase4: >
       Calculado en src/spark/gold_kpis.py (tabla data/gold/kpis_cliente).
-      income = ingreso_mensual_simulado (Opción A, decisión con Eduardo,
+      income = ingreso_mensual_simulado (Opción A, decisión con BBVA,
       oct 2026); expense = gasto real con tarjeta de Silver (gasto total /
       meses de actividad). Puede ser negativo.
 
@@ -85,7 +85,7 @@ kpis:
       columnas: [LoanAmount, InterestRate, LoanTerm, Income]
     capa: "Gold"
     nota_fase4: >
-      Decisión con Eduardo (oct 2026): DTI con fórmula propia documentada. No
+      Decisión con BBVA (oct 2026): DTI con fórmula propia documentada. No
       se usa el DTIRatio del dataset (no está documentado ni es reproducible).
       Reemplaza a la fórmula preliminar de Fase 1 (deuda_total / ingreso_anual).
       Solo incluye el préstamo asignado. Puede ser mayor a 1. Detalle en

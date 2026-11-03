@@ -87,7 +87,8 @@ Luego, en Airflow, activa y corre el DAG `bronze_ingest`. Servicios disponibles:
 - Airflow UI: http://localhost:8080 (usuario/clave definidos en `.env`)
 - Panel Operativo: http://localhost:8501
 - Dashboard Ejecutivo: http://localhost:8502
-- MinIO Console: http://localhost:9001 (almacenamiento tipo S3 simulado)
+- MinIO Console: http://localhost:9001 (almacenamiento tipo S3; queda listo para una futura
+  migración a la nube, por ahora los datos se guardan en Parquet en `./data`)
 - PostgreSQL: `localhost:5432` (metadata de Airflow + base analítica)
 
 Si cambias el código de un dashboard, reconstrúyelo con

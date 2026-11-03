@@ -68,7 +68,7 @@ def entrenado(spark):
 
 
 def test_no_usa_el_ingreso_simulado_ni_el_dti_de_la_fuente():
-    """Decisiones con Eduardo: el modelo usa el ingreso de la fuente y el DTI
+    """Decisiones con BBVA: el modelo usa el ingreso de la fuente y el DTI
     calculado por nosotros."""
     variables = set(VARIABLES_NUMERICAS + VARIABLES_CATEGORICAS)
     assert "ingreso_mensual_simulado" not in variables
