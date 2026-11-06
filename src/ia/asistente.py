@@ -118,9 +118,12 @@ def _es_dinero(col: str) -> bool:
     )
 
 
-def formatear_df(df: pd.DataFrame) -> pd.DataFrame:
+def formatear_df(df: pd.DataFrame, porcentajes=None) -> pd.DataFrame:
     """Valores ya escritos como los leería una persona: porcentajes y dólares
-    (un modelo pequeño se equivoca menos que si tiene que convertirlos)."""
+    (un modelo pequeño se equivoca menos que si tiene que convertirlos).
+    porcentajes: columnas de 0 a 1 que se escriben como %, si no son las de
+    siempre (COLUMNAS_PORCENTAJE)."""
+    porcentajes = COLUMNAS_PORCENTAJE if porcentajes is None else porcentajes
     out = df.copy()
     for col in out.columns:
         serie = out[col]
@@ -129,7 +132,7 @@ def formatear_df(df: pd.DataFrame) -> pd.DataFrame:
         ):
             if col == "tasa_interes_anual":
                 out[col] = serie.map(lambda v: "—" if pd.isna(v) else f"{v:.1f}%")
-            elif col in COLUMNAS_PORCENTAJE:
+            elif col in porcentajes:
                 out[col] = serie.map(lambda v: "—" if pd.isna(v) else f"{v * 100:.1f}%")
             elif _es_dinero(col):
                 out[col] = serie.map(
@@ -196,18 +199,21 @@ ETIQUETAS_COLUMNAS = {
 }
 
 
-def formatear_para_modelo(df: pd.DataFrame, max_filas: int = 20) -> str:
+def formatear_para_modelo(
+    df: pd.DataFrame, max_filas: int = 20, etiquetas=None, porcentajes=None
+) -> str:
     """Una línea por fila con «Etiqueta: valor»: a un modelo pequeño le cuesta
     menos leerlo bien que una tabla con nombres técnicos."""
     if df is None or df.empty:
         return "(sin resultados)"
-    tabla = formatear_df(df.head(max_filas))
+    etiquetas = ETIQUETAS_COLUMNAS if etiquetas is None else etiquetas
+    tabla = formatear_df(df.head(max_filas), porcentajes)
     if "mes" in tabla.columns and "mes_nombre" in tabla.columns:
         tabla = tabla.drop(columns="mes")
     lineas = []
     for _, fila in tabla.iterrows():
         partes = [
-            f"{ETIQUETAS_COLUMNAS.get(c, str(c).replace('_', ' '))}: {v}"
+            f"{etiquetas.get(c, str(c).replace('_', ' '))}: {v}"
             for c, v in fila.items()
         ]
         lineas.append("- " + "; ".join(partes))
@@ -398,7 +404,13 @@ COMPARA_MESES = (
 )
 
 
-def respuesta_directa_sql(datos: pd.DataFrame, pregunta: str, sql: str = None) -> str:
+def respuesta_directa_sql(
+    datos: pd.DataFrame,
+    pregunta: str,
+    sql: str = None,
+    etiquetas=None,
+    porcentajes=None,
+) -> str:
     """Si la consulta regresó un solo renglón (un total, un promedio, un dato
     del perfil), ese es el dato que pidió el cliente: se le marca al modelo,
     junto con la pregunta y los filtros de la consulta (p. ej. 'Viajes'), para
@@ -409,7 +421,9 @@ def respuesta_directa_sql(datos: pd.DataFrame, pregunta: str, sql: str = None) -
     filtro = f" (filtrado por: {', '.join(filtros)})" if filtros else ""
     return (
         f"Respuesta exacta a «{pregunta}»{filtro}: "
-        + formatear_para_modelo(datos).lstrip("- ")
+        + formatear_para_modelo(
+            datos, etiquetas=etiquetas, porcentajes=porcentajes
+        ).lstrip("- ")
         + ". Contesta con este dato."
     )
 

@@ -29,6 +29,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from src.dashboard import catalogo as catalogo_datos  # noqa: E402
 from src.dashboard import datos  # noqa: E402
 from src.dashboard import estilo as e  # noqa: E402
 from src.observabilidad import alertas as al  # noqa: E402
@@ -107,6 +108,11 @@ def cargar_consistencia():
 @st.cache_data(ttl=30, show_spinner=False)
 def cargar_alertas():
     return al.historial(n=6)
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def cargar_catalogo():
+    return catalogo_datos.resumen(RUTAS)
 
 
 @st.cache_data(ttl=30, show_spinner=False)
@@ -783,6 +789,68 @@ with st.container(key="caja_gold"):
     for col, tarjeta in zip(st.columns(5, gap="medium"), mini):
         with col:
             html(tarjeta)
+
+st.write("")
+
+# ---------------------------------------------------------------------------
+# Catálogo de datos
+# ---------------------------------------------------------------------------
+
+with st.container(key="caja_catalogo"):
+    html(
+        e.titulo_caja(
+            "Catálogo de datos",
+            "Qué hay en cada capa del Lakehouse, de dónde viene, qué paso del DAG lo "
+            "genera y qué significa cada columna. Filas y fecha se leen de los archivos.",
+            "capas",
+        )
+    )
+    catalogo = cargar_catalogo()
+    vista = pd.DataFrame(
+        {
+            "Capa": catalogo["capa"],
+            "Tabla": catalogo["tabla"],
+            "Qué contiene": catalogo["descripcion"],
+            "Filas": catalogo["filas"].map(e.formato_entero),
+            "Columnas": catalogo["columnas"].map(e.formato_entero),
+            "Actualizada": catalogo["actualizada"].map(
+                lambda f: "—" if pd.isna(f) else f"{f:%d/%m/%Y %H:%M}"
+            ),
+            "Lo genera": catalogo["paso"],
+            "Datos personales": catalogo["personales"].map(
+                lambda p: "Sí (no pasan a Silver)" if p else "No"
+            ),
+        }
+    )
+    st.dataframe(vista, hide_index=True, width="stretch")
+    sin_doc = catalogo[catalogo["sin_documentar"].map(len) > 0]
+    for _, f in sin_doc.iterrows():
+        html(
+            e.aviso(
+                f"<b>{f['capa']} {f['tabla']}</b> tiene columnas sin documentar: "
+                + ", ".join(f["sin_documentar"])
+            )
+        )
+    faltan = catalogo[~catalogo["existe"]]
+    if len(faltan):
+        html(
+            e.aviso(
+                "Todavía no existen: "
+                + ", ".join(f"{c} {t}" for c, t in zip(faltan["capa"], faltan["tabla"]))
+                + ". Corre el DAG completo.",
+                info=True,
+            )
+        )
+    nombres = [f"{t.capa} · {t.nombre}" for t in catalogo_datos.CATALOGO]
+    elegida = st.selectbox("Ver las columnas de", nombres, key="tabla_catalogo")
+    tabla_cat = catalogo_datos.CATALOGO[nombres.index(elegida)]
+    html(
+        f'<p class="gd-nota"><b>Origen:</b> {tabla_cat.origen} · <b>Llave:</b> '
+        f"{tabla_cat.llave} · <b>Paso del DAG:</b> {tabla_cat.paso}</p>"
+    )
+    dicc = catalogo_datos.columnas(tabla_cat, RUTAS)
+    dicc.columns = ["Columna", "Descripción", "Dato personal"]
+    st.dataframe(dicc, hide_index=True, width="stretch")
 
 html(
     '<p class="gd-pie">Fuentes: Credit Card Transactions Fraud Detection y Loan Default '

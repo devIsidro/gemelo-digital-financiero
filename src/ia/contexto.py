@@ -301,8 +301,9 @@ def limpiar_sql(texto: str) -> str:
     return sql.strip().rstrip(";").strip()
 
 
-def validar_sql(sql: str) -> str:
-    """Solo una consulta de lectura sobre las tablas del cliente."""
+def validar_sql(sql: str, tablas=TABLAS) -> str:
+    """Solo una consulta de lectura sobre las tablas permitidas (por defecto,
+    las del cliente)."""
     s = sql.strip()
     if not s:
         raise SQLInvalido("La consulta está vacía.")
@@ -318,13 +319,13 @@ def validar_sql(sql: str) -> str:
             raise SQLInvalido(f"No se permite usar {palabra.upper()}.")
     usadas = set(re.findall(r"\b(?:from|join)\s+([a-z_][a-z0-9_]*)", sin_textos))
     ctes = set(re.findall(r"\b([a-z_][a-z0-9_]*)\s+as\s*\(", sin_textos))
-    desconocidas = usadas - set(TABLAS) - ctes
+    desconocidas = usadas - set(tablas) - ctes
     if desconocidas:
         raise SQLInvalido(
             "Tablas desconocidas: "
             + ", ".join(sorted(desconocidas))
             + ". Solo existen: "
-            + ", ".join(TABLAS)
+            + ", ".join(tablas)
             + "."
         )
     return s
@@ -340,8 +341,8 @@ def conectar(tablas: dict) -> duckdb.DuckDBPyConnection:
     return con
 
 
-def ejecutar_sql(con, sql: str, limite: int = 50) -> pd.DataFrame:
-    s = validar_sql(sql)
+def ejecutar_sql(con, sql: str, limite: int = 50, tablas=TABLAS) -> pd.DataFrame:
+    s = validar_sql(sql, tablas)
     try:
         return con.execute(
             f"SELECT * FROM ({s}) AS consulta LIMIT {int(limite)}"

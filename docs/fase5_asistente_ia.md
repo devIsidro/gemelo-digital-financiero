@@ -130,12 +130,13 @@ del dashboard funciona igual.
 
 ## Pruebas
 
-43 pruebas automáticas en `tests/ia/` que no necesitan Ollama: usan modelos
+59 pruebas automáticas en `tests/ia/` que no necesitan Ollama: usan modelos
 falsos de LangChain con respuestas fijas. Revisan las tablas del cliente, que
 el validador bloquee SQL peligroso, que DuckDB no pueda leer archivos, la
 corrección del SQL cuando falla, las simulaciones de gasto y de meta, qué pasa
 si el modelo responde algo que no es JSON, los hechos clave, la detección de
-preguntas con un dato equivocado y el filtro de muletillas. Corren en GitHub
+preguntas con un dato equivocado, el filtro de muletillas y las tablas y el
+flujo de las preguntas del portafolio. Corren en GitHub
 Actions con el resto del proyecto.
 
 ## Evaluación con el modelo real
@@ -202,6 +203,49 @@ datos. Por eso el diseño final no le deja ninguna cuenta: Python calcula y
 verifica cada comparación, el modelo solo la redacta, y la evaluación se
 vuelve a correr después de cada cambio.
 
+## Preguntas sobre todo el portafolio
+
+En la pestaña «Asistente IA» se elige **Un cliente** o **Todo el portafolio**.
+La segunda opción contesta lo que preguntaría alguien del negocio, por
+ejemplo:
+
+- ¿Cuántos clientes están en riesgo alto?
+- ¿Quiénes son los 5 clientes con mayor probabilidad de impago?
+- ¿En qué categoría gastan más los clientes?
+- ¿Cuántos clientes gastan más de lo que ganan?
+- ¿Cuántos clientes quedarían en riesgo de números rojos con un crédito
+  hipotecario?
+
+Código en `src/ia/portafolio.py` y prompts en
+`src/ia/prompts/*_portafolio.txt`. Funciona igual que el asistente de un
+cliente (clasificar, Text-to-SQL validado sobre DuckDB y redactar), con cinco
+tablas agregadas de todos los clientes:
+
+| Tabla | Una fila por |
+|---|---|
+| `clientes` | cliente (identificador anónimo, sin número de tarjeta) |
+| `resumen_niveles` | nivel de riesgo: clientes, porcentaje, probabilidad promedio |
+| `meses_portafolio` | mes: gasto total, clientes con compras, compras |
+| `gastos_categoria_portafolio` | mes y categoría de gasto |
+| `escenarios_portafolio` | escenario del simulador: clientes en riesgo de números rojos |
+
+Igual que con un cliente, Python calcula el **panorama** del portafolio
+(clientes por nivel de riesgo, probabilidad promedio, cuántos gastan más de lo
+que ganan, el mes con más gasto) y se lo pasa ya escrito al modelo, que solo
+redacta. Si la consulta regresa un solo dato, se le marca como la respuesta
+exacta. El validador es el mismo, con la lista de tablas del portafolio: las
+tablas de un cliente no existen en este modo y viceversa.
+
+Para evaluarlo con el modelo real:
+
+```
+docker compose exec dashboard-ejecutivo python -m src.ia.evaluar --portafolio
+```
+
+Hace 12 preguntas (incluye una de seguimiento, un saludo y «Borra a los
+clientes de riesgo alto») y guarda el detalle en
+`data/evaluacion_ia/resultados_portafolio.csv`.
+
 ## Limitaciones
 
 - Un modelo de 8B a veces escribe SQL con errores; por eso se valida, se
@@ -213,5 +257,5 @@ vuelve a correr después de cada cambio.
 
 ## Siguiente paso
 
-Preguntas sobre todo el portafolio (por ejemplo, «¿cuántos clientes están en
-riesgo alto?»), con tablas agregadas en lugar de las de un solo cliente.
+Gráficas dentro de las respuestas del portafolio (por ejemplo, la evolución
+del gasto mensual cuando se pregunta por meses).

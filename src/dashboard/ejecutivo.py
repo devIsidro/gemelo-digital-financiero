@@ -35,6 +35,7 @@ from src.dashboard import datos  # noqa: E402
 from src.dashboard import datos_ejecutivo as de  # noqa: E402
 from src.dashboard import estilo as e  # noqa: E402
 from src.ia import asistente as ia  # noqa: E402
+from src.ia import portafolio as pf  # noqa: E402
 from src.ia import contexto as cx  # noqa: E402
 from src.ml import simulador as sm  # noqa: E402
 from src.ml.explicacion import CORTES_RIESGO, NIVELES, RANGOS  # noqa: E402
@@ -472,20 +473,31 @@ def tablas_ia(cc_num: int):
     )
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def tablas_portafolio_ia():
+    """Las tablas agregadas de todos los clientes, para preguntas del portafolio."""
+    clientes, _, _, tx, _ = cargar_base()
+    sim = cargar_sim()
+    return pf.tablas_portafolio(
+        clientes, tx, meses_historico(), None if sim is None else sim[1]
+    )
+
+
 def sin_latex(texto: str) -> str:
     """Streamlit lee $...$ como fórmula; los montos en dólares se escapan."""
     return texto.replace("$", "\\$")
 
 
-def detalle_ia(prep):
+def detalle_ia(prep, portafolio: bool = False):
     """«Cómo lo calculé»: de dónde salen los números de la respuesta."""
     if prep is None or prep.tipo == "otro":
         return
     with st.expander("Cómo lo calculé"):
         if prep.tipo == "datos":
             st.caption(
-                "El modelo tradujo tu pregunta a esta consulta SQL sobre tus datos "
-                "de la capa Gold (Text-to-SQL):"
+                "El modelo tradujo tu pregunta a esta consulta SQL sobre "
+                + ("los datos de todos los clientes" if portafolio else "tus datos")
+                + " de la capa Gold (Text-to-SQL):"
             )
             if prep.sql:
                 st.code(prep.sql, language="sql", wrap_lines=True)
@@ -498,7 +510,7 @@ def detalle_ia(prep):
         if prep.nota:
             st.caption(prep.nota)
         if prep.datos is not None and not prep.datos.empty:
-            tabla = ia.formatear_df(prep.datos)
+            tabla = ia.formatear_df(prep.datos, pf.PORCENTAJES if portafolio else None)
             tabla.columns = [
                 str(c).replace("_", " ").capitalize() for c in tabla.columns
             ]
@@ -1202,23 +1214,43 @@ with tab_ia:
         html(
             e.titulo_caja(
                 "Asistente financiero (IA generativa)",
-                "Pregunta en tus palabras sobre un cliente. Responde Llama 3.1, que corre "
-                "en esta computadora con Ollama; los números salen de la capa Gold y del "
-                "simulador Monte Carlo, no de la memoria del modelo.",
+                "Pregunta en tus palabras sobre un cliente o sobre todo el portafolio. "
+                "Responde Llama 3.1, que corre en esta computadora con Ollama; los números "
+                "salen de la capa Gold y del simulador Monte Carlo, no de la memoria del "
+                "modelo.",
                 "ia",
             )
         )
         ok_ia, motivo_ia = estado_ollama()
+        modo_ia = st.segmented_control(
+            "Preguntar sobre",
+            ["Un cliente", "Todo el portafolio"],
+            default="Un cliente",
+            key="modo_ia",
+            label_visibility="collapsed",
+            on_change=no_deseleccionar,
+            args=("modo_ia", "Un cliente"),
+        )
+        portafolio_ia = (modo_ia or "Un cliente") == "Todo el portafolio"
         a1, a2 = st.columns([2, 3], vertical_alignment="bottom")
         with a1:
             actual = st.session_state.get("cliente", opciones[0])
-            elegido_ia = st.selectbox(
-                "Cliente",
-                opciones,
-                index=opciones.index(actual) if actual in opciones else 0,
-                format_func=lambda c: etiquetas[c],
-                key="cliente_ia",
+            elegido_ia = (
+                "Portafolio"
+                if portafolio_ia
+                else st.selectbox(
+                    "Cliente",
+                    opciones,
+                    index=opciones.index(actual) if actual in opciones else 0,
+                    format_func=lambda c: etiquetas[c],
+                    key="cliente_ia",
+                )
             )
+            if portafolio_ia:
+                html(
+                    f'<div class="gd-nota">{len(clientes):,} clientes · histórico '
+                    f"{periodo}</div>"
+                )
         with a2:
             html(
                 e.pill(f"{ia.OLLAMA_MODELO} · local", e.LIME, "●")
@@ -1244,14 +1276,15 @@ with tab_ia:
                 )
             )
         else:
-            fila_ia = clientes[clientes["cliente"] == elegido_ia].iloc[0]
-            cc_ia = int(fila_ia["cc_num"])
-            sim_ia = cargar_sim()
-            insumo_ia, sup_ia = None, {}
-            if sim_ia is not None:
-                filas = sim_ia[0][sim_ia[0]["cc_num"] == cc_ia]
-                insumo_ia = None if filas.empty else filas.iloc[0]
-                sup_ia = sim_ia[2].get("supuestos", {})
+            if not portafolio_ia:
+                fila_ia = clientes[clientes["cliente"] == elegido_ia].iloc[0]
+                cc_ia = int(fila_ia["cc_num"])
+                sim_ia = cargar_sim()
+                insumo_ia, sup_ia = None, {}
+                if sim_ia is not None:
+                    filas = sim_ia[0][sim_ia[0]["cc_num"] == cc_ia]
+                    insumo_ia = None if filas.empty else filas.iloc[0]
+                    sup_ia = sim_ia[2].get("supuestos", {})
             historial = st.session_state.setdefault("chat_ia", {}).setdefault(
                 elegido_ia, []
             )
@@ -1259,7 +1292,8 @@ with tab_ia:
             html('<div class="gd-subtitulo" style="margin-top:4px">Prueba con</div>')
             sugerida = None
             columnas_sug = st.columns(2)
-            for i, q in enumerate(ia.PREGUNTAS_EJEMPLO):
+            ejemplos = pf.PREGUNTAS_EJEMPLO if portafolio_ia else ia.PREGUNTAS_EJEMPLO
+            for i, q in enumerate(ejemplos):
                 if columnas_sug[i % 2].button(
                     q, key=f"sug_ia_{i}", use_container_width=True
                 ):
@@ -1267,7 +1301,12 @@ with tab_ia:
 
             conversacion = st.container()
             escrita = st.chat_input(
-                "Escribe tu pregunta sobre este cliente…", key="chat_ia_entrada"
+                (
+                    "Escribe tu pregunta sobre el portafolio…"
+                    if portafolio_ia
+                    else "Escribe tu pregunta sobre este cliente…"
+                ),
+                key="chat_ia_entrada",
             )
             pregunta = escrita or sugerida
 
@@ -1275,17 +1314,31 @@ with tab_ia:
                 for msg in historial:
                     with st.chat_message(msg["rol"]):
                         st.markdown(sin_latex(msg["texto"]))
-                        detalle_ia(msg.get("prep"))
+                        detalle_ia(msg.get("prep"), portafolio_ia)
                 if pregunta:
                     with st.chat_message("user"):
                         st.markdown(sin_latex(pregunta))
                     with st.chat_message("assistant"):
                         texto, prep = None, None
                         try:
-                            asistente = ia.Asistente(
-                                modelos_ia(), tablas_ia(cc_ia), insumo_ia, sup_ia, cc_ia
+                            asistente = (
+                                pf.AsistentePortafolio(
+                                    modelos_ia(), tablas_portafolio_ia()
+                                )
+                                if portafolio_ia
+                                else ia.Asistente(
+                                    modelos_ia(),
+                                    tablas_ia(cc_ia),
+                                    insumo_ia,
+                                    sup_ia,
+                                    cc_ia,
+                                )
                             )
-                            with st.spinner("Buscando en los datos del cliente…"):
+                            with st.spinner(
+                                "Buscando en los datos del portafolio…"
+                                if portafolio_ia
+                                else "Buscando en los datos del cliente…"
+                            ):
                                 prep = asistente.preparar(pregunta, historial)
                             texto = st.write_stream(
                                 sin_latex(parte)
@@ -1299,7 +1352,7 @@ with tab_ia:
                             )
                             estado_ollama.clear()
                         if texto:
-                            detalle_ia(prep)
+                            detalle_ia(prep, portafolio_ia)
                     if texto:
                         historial.append({"rol": "user", "texto": pregunta})
                         historial.append(

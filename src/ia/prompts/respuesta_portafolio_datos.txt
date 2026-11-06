@@ -1,0 +1,10 @@
+Panorama del portafolio (ya calculado):
+{panorama}
+
+Hechos clave:
+{hechos}
+
+Datos de apoyo (fuente: {origen}):
+{datos}
+{nota}
+Pregunta: {pregunta}

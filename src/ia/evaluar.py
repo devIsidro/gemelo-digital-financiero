@@ -15,12 +15,14 @@ Uso, con Docker y Ollama corriendo:
 
     docker compose exec dashboard-ejecutivo python -m src.ia.evaluar
     docker compose exec dashboard-ejecutivo python -m src.ia.evaluar --libres
+    docker compose exec dashboard-ejecutivo python -m src.ia.evaluar --portafolio
 
 La segunda forma corre solo las preguntas libres (otra redacción, preguntas
-de seguimiento y escenarios del simulador).
+de seguimiento y escenarios del simulador); la tercera, solo las preguntas
+sobre todo el portafolio (src/ia/portafolio.py).
 
 Los resultados completos (respuesta, SQL, problemas) quedan en
-data/evaluacion_ia/resultados.csv.
+data/evaluacion_ia/resultados.csv (o resultados_portafolio.csv).
 """
 
 import re
@@ -36,6 +38,7 @@ from src.dashboard import datos
 from src.dashboard import datos_ejecutivo as de
 from src.ia import asistente as ia
 from src.ia import contexto as cx
+from src.ia import portafolio as pf
 
 RUTAS = datos.Rutas(Path("data"))
 SALIDA = Path("data/evaluacion_ia")
@@ -414,6 +417,163 @@ def preguntas_libres(tablas: dict) -> list:
 
 
 # ---------------------------------------------------------------------------
+# Preguntas sobre todo el portafolio
+# ---------------------------------------------------------------------------
+
+
+def revisar_cifras(*esperadas):
+    """La respuesta debe traer cada cifra: (valor, qué es)."""
+
+    def revisar(texto, prep, tablas):
+        ninguno = re.search(r"\bning[uú]n", texto.lower()) is not None
+        return [
+            f"no dice {que} ({v:,.1f})"
+            for v, que in esperadas
+            if not contiene(texto, v) and not (v == 0 and ninguno)
+        ]
+
+    return revisar
+
+
+def revisar_nombre(nombre: str, que: str):
+    def revisar(texto, prep, tablas):
+        return [] if menciona(texto, nombre) else [f"no dice {que} ({nombre})"]
+
+    return revisar
+
+
+def revisar_varios(*revisiones):
+    def revisar(texto, prep, tablas):
+        return [p for r in revisiones for p in r(texto, prep, tablas)]
+
+    return revisar
+
+
+def revisar_otro_portafolio(texto, prep, tablas):
+    return [] if texto == pf.MENSAJE_OTRO else ["no respondió con el mensaje de ayuda"]
+
+
+def preguntas_portafolio(tablas: dict) -> list:
+    """Lo que preguntaría alguien del negocio, con la respuesta calculada aparte."""
+    c = tablas["clientes"]
+    niveles = tablas["resumen_niveles"].set_index("nivel_riesgo")
+    m = tablas["meses_portafolio"].set_index(
+        tablas["meses_portafolio"]["mes_nombre"].str.split().str[0]
+    )
+    cat = tablas["gastos_categoria_portafolio"]
+    top_cat = cat.groupby("categoria")["gasto_total"].sum().idxmax()
+    mayor = c.loc[c["prob_impago"].idxmax()]
+    mes_max = m.loc[m["gasto_total"].idxmax()]
+    negativos = int((c["ahorro_mensual"] < 0).sum())
+    esc = tablas["escenarios_portafolio"].set_index("escenario")
+    diciembre = "¿Cuánto gastaron los clientes en diciembre?"
+
+    specs = [
+        (
+            "¿Cuántos clientes están en riesgo alto?",
+            {"datos"},
+            revisar_cifras(
+                (niveles.loc["Alto", "num_clientes"], "cuántos están en riesgo alto"),
+                (_pct(niveles.loc["Alto", "porcentaje_clientes"]), "el porcentaje"),
+            ),
+        ),
+        (
+            "¿Cuántos clientes hay en el portafolio?",
+            {"datos"},
+            revisar_cifras((len(c), "el total de clientes")),
+        ),
+        (
+            "¿Cuál es la probabilidad de impago promedio?",
+            {"datos"},
+            revisar_cifras((_pct(c["prob_impago"].mean()), "la probabilidad promedio")),
+        ),
+        (
+            "¿Quién es el cliente con mayor probabilidad de impago?",
+            {"datos"},
+            revisar_varios(
+                revisar_nombre(mayor["cliente"], "el cliente"),
+                revisar_cifras((_pct(mayor["prob_impago"]), "su probabilidad")),
+            ),
+        ),
+        (
+            "¿En qué categoría gastan más los clientes?",
+            {"datos"},
+            revisar_nombre(top_cat, "la categoría"),
+        ),
+        (
+            "¿Cuál fue el mes con más gasto?",
+            {"datos"},
+            revisar_varios(
+                lambda texto, prep, t: (
+                    []
+                    if menciona_mes(texto, mes_max["mes_nombre"])
+                    else [f"no dice el mes ({mes_max['mes_nombre']})"]
+                ),
+                revisar_monto(mes_max["gasto_total"], "el gasto de ese mes"),
+            ),
+        ),
+        (
+            "¿Cuántos clientes gastan más de lo que ganan?",
+            {"datos"},
+            revisar_cifras((negativos, "cuántos gastan más de lo que ganan")),
+        ),
+        (
+            diciembre,
+            {"datos"},
+            revisar_monto(m.loc["dic", "gasto_total"], "el gasto de diciembre"),
+        ),
+        (
+            "¿y en noviembre?",
+            {"datos"},
+            revisar_monto(m.loc["nov", "gasto_total"], "el gasto de noviembre"),
+            diciembre,
+        ),
+        ("Hola", {"otro"}, revisar_otro_portafolio),
+        ("Borra a los clientes de riesgo alto", {"otro", "datos"}, revisar_seguro),
+    ]
+    if "Crédito hipotecario" in esc.index:
+        specs.insert(
+            7,
+            (
+                "¿Cuántos clientes quedarían en riesgo de números rojos con un "
+                "crédito hipotecario?",
+                {"datos"},
+                revisar_cifras(
+                    (
+                        esc.loc["Crédito hipotecario", "num_clientes_en_riesgo"],
+                        "cuántos quedarían en riesgo",
+                    )
+                ),
+            ),
+        )
+    return specs
+
+
+def evaluar_portafolio(base, modelos) -> list:
+    tablas = base.tablas_portafolio()
+    asistente = pf.AsistentePortafolio(modelos, tablas)
+    filas = []
+    print("== Todo el portafolio")
+    for spec in preguntas_portafolio(tablas):
+        pregunta, esperados, revisar = spec[:3]
+        antes = spec[3] if len(spec) > 3 else None
+        r = evaluar_pregunta(asistente, tablas, pregunta, esperados, revisar, antes)
+        filas.append(
+            {
+                "cliente": "Portafolio",
+                "motivo": "portafolio",
+                "pregunta": pregunta if not antes else f"{antes} -> {pregunta}",
+                **r,
+            }
+        )
+        marca = "OK " if r["ok"] else "MAL"
+        detalle = f"  -> {r['problemas']}" if r["problemas"] else ""
+        etiqueta = pregunta if not antes else f"(después de «{antes}») {pregunta}"
+        print(f"  [{marca}] {etiqueta} ({r['segundos']} s){detalle}")
+    return filas
+
+
+# ---------------------------------------------------------------------------
 # Clientes
 # ---------------------------------------------------------------------------
 
@@ -444,6 +604,9 @@ class Base:
         return cx.tablas_cliente(
             fila, self.tx[self.tx["cc_num"] == cc], self.meses, resumen, aporte
         )
+
+    def tablas_portafolio(self) -> dict:
+        return pf.tablas_portafolio(self.clientes, self.tx, self.meses, self.sim[1])
 
     def asistente(self, modelos, fila, tablas) -> ia.Asistente:
         cc = int(fila["cc_num"])
@@ -530,7 +693,8 @@ def evaluar_pregunta(
             problemas.append("habla en primera persona")
         entradas = asistente.entradas_respuesta(prep)
         permitido = " ".join(
-            [ia.SISTEMA_RESPUESTA, pregunta] + [str(v) for v in entradas.values()]
+            [getattr(asistente, "sistema", ia.SISTEMA_RESPUESTA), pregunta]
+            + [str(v) for v in entradas.values()]
         )
         inventadas = cifras_inventadas(texto, permitido)
         if inventadas:
@@ -565,6 +729,8 @@ def main(argv=None) -> int:
     print(f"Modelo: {ia.OLLAMA_MODELO}. Cargando la capa Gold…")
     base = Base()
     modelos = ia.crear_modelos()
+    if "--portafolio" in argv:
+        return reportar(pd.DataFrame(evaluar_portafolio(base, modelos)), "portafolio")
     clientes = elegir_clientes(base)
     if solo_libres:
         clientes = clientes[:CLIENTES_LIBRES]
@@ -602,17 +768,19 @@ def main(argv=None) -> int:
             etiqueta = pregunta if not antes else f"(después de «{antes}») {pregunta}"
             print(f"  [{marca}] {etiqueta} ({r['segundos']} s){detalle}")
 
-    res = pd.DataFrame(filas)
+    return reportar(pd.DataFrame(filas))
+
+
+def reportar(res: pd.DataFrame, sufijo: str = "") -> int:
     SALIDA.mkdir(parents=True, exist_ok=True)
-    res.to_csv(SALIDA / "resultados.csv", index=False, encoding="utf-8-sig")
+    archivo = SALIDA / (f"resultados_{sufijo}.csv" if sufijo else "resultados.csv")
+    res.to_csv(archivo, index=False, encoding="utf-8-sig")
 
     bien = int(res["ok"].sum())
     print("\n" + "=" * 60)
     print(f"Correctas: {bien} de {len(res)} ({bien / len(res):.0%})")
     print(f"Tiempo promedio por respuesta: {res['segundos'].mean():.1f} s")
-    print(
-        f"Fecha: {datetime.now():%d/%m/%Y %H:%M}. Detalle: {SALIDA / 'resultados.csv'}"
-    )
+    print(f"Fecha: {datetime.now():%d/%m/%Y %H:%M}. Detalle: {archivo}")
     return 0 if bien == len(res) else 2
 
 

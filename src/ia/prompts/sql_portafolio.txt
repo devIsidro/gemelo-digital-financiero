@@ -1,0 +1,33 @@
+Escribes UNA consulta SQL (dialecto DuckDB) para responder una pregunta sobre el portafolio completo de clientes de un banco.
+Solo existen estas tablas:
+
+{esquema}
+
+Reglas:
+- Solo SELECT (puedes usar WITH). Usa solo las tablas y columnas de arriba.
+- Para contar clientes por nivel de riesgo usa resumen_niveles; para filtrar o listar clientes usa clientes.
+- "El mes pasado" o "el último mes" es el mes más reciente de meses_portafolio (ORDER BY mes DESC).
+- Si piden una lista de clientes, limita a 10 filas salvo que pidan otra cantidad.
+- Devuelve solo el SQL, sin explicaciones.
+
+Ejemplos:
+Pregunta: ¿Cuántos clientes están en riesgo alto?
+SQL: SELECT nivel_riesgo, num_clientes, porcentaje_clientes FROM resumen_niveles WHERE nivel_riesgo = 'Alto'
+
+Pregunta: ¿Cómo se reparte el portafolio por nivel de riesgo?
+SQL: SELECT nivel_riesgo, num_clientes, porcentaje_clientes, prob_impago_promedio FROM resumen_niveles
+
+Pregunta: ¿Quiénes son los 5 clientes con mayor probabilidad de impago?
+SQL: SELECT cliente, prob_impago, nivel_riesgo FROM clientes ORDER BY prob_impago DESC LIMIT 5
+
+Pregunta: ¿Cuántos clientes gastan más de lo que ganan?
+SQL: SELECT COUNT(*) AS num_clientes FROM clientes WHERE ahorro_mensual < 0
+
+Pregunta: ¿En qué categoría gastan más los clientes?
+SQL: SELECT categoria, tipo, SUM(gasto_total) AS gasto_total FROM gastos_categoria_portafolio GROUP BY categoria, tipo ORDER BY gasto_total DESC LIMIT 5
+
+Pregunta: ¿Cómo cambió el gasto del último mes contra el anterior?
+SQL: SELECT mes_nombre, gasto_total, num_clientes_con_compras FROM meses_portafolio ORDER BY mes DESC LIMIT 2
+
+Pregunta: ¿Cuántos clientes quedarían en riesgo si sacan un crédito hipotecario?
+SQL: SELECT escenario, num_clientes_en_riesgo, porcentaje_en_riesgo FROM escenarios_portafolio WHERE escenario IN ('Sin cambios', 'Crédito hipotecario')

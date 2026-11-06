@@ -106,6 +106,24 @@ correctas y tiempo promedio) y si el modelo local de Ollama está activo.
 - **Pruebas:** 16 pruebas nuevas en `tests/observabilidad/` (consistencia con
   un Lakehouse chiquito, cada SLA, alertas, correo con un servidor SMTP falso).
 
+### 6. Catálogo de datos
+
+Al final del Panel Operativo hay un catálogo de las 11 tablas del Lakehouse
+(`src/dashboard/catalogo.py`). Para cada una dice:
+
+- capa, qué contiene, de dónde viene y qué paso del DAG la genera;
+- filas, columnas y fecha de la última actualización, leídas de los archivos
+  Parquet (siempre al día, sin mantenerlo a mano);
+- qué significa cada columna y cuáles son datos personales. Estos solo están
+  en Bronze; Silver ya no los guarda, y una prueba lo verifica.
+
+Si una tabla trae una columna que no está documentada, el panel lo avisa.
+Así el catálogo no se queda viejo cuando cambia el pipeline.
+
+El proyecto empezó con un problema de adopción del catálogo corporativo: la
+gente usaba fuentes no oficiales porque no encontraba ni entendía los datos.
+Este catálogo es la respuesta del proyecto a ese problema.
+
 ## Revisar desde la terminal
 
 ```
