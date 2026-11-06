@@ -8,7 +8,7 @@ Une, un renglón por cliente (cc_num):
   - el préstamo asignado a cada cliente con la llave sintética
     (asignar_prestamos.py + Silver de Loan Default).
 
-Decisiones con Eduardo (oct 2026), detalle en docs/fase4_decisiones_kpis.md:
+Decisiones con BBVA (oct 2026), detalle en docs/fase4_decisiones_kpis.md:
 
   - Dos ingresos, separados a propósito y con nombres distintos:
       ingreso_mensual_simulado -> SOLO para capacidad_ahorro y

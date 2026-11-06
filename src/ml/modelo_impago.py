@@ -14,7 +14,7 @@ Decisiones (ver docs/fase5_modelo_impago.md):
     el mismo AUC (~0.75), y la logística es explicable — cada variable tiene
     un coeficiente que dice cuánto sube o baja el riesgo.
   - Variables: solo las del préstamo (fuente Loan Default). El ingreso es
-    ingreso_mensual_fuente, NUNCA el ingreso simulado (decisión con Eduardo).
+    ingreso_mensual_fuente, NUNCA el ingreso simulado (decisión con BBVA).
     El DTI es el mismo que el KPI ratio_endeudamiento (misma función). No se
     usa el DTIRatio del dataset.
   - El modelo se reentrena en cada corrida del DAG (tarda segundos). No se

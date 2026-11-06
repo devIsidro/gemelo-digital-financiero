@@ -3,19 +3,11 @@
 
 # Procesamiento de datos
 pandas>=2.2
-pyspark>=3.5
-duckdb>=1.0
-sqlalchemy>=2.0
+pyarrow>=15.0       # leer y escribir Parquet
+pyspark==4.2.0      # misma versión que el Dockerfile y la CI
+duckdb==2.0.0
 psycopg2-binary>=2.9
-boto3>=1.34          # cliente S3, compatible con MinIO
-
-# Calidad de datos
-great_expectations>=1.0
-
-# Machine Learning
-scikit-learn>=1.5
-xgboost>=2.1
-lightgbm>=4.5
+tzdata              # zona horaria America/Mexico_City en Windows
 
 # IA Generativa / RAG (asistente: Llama 3 en Ollama + LangChain + Text-to-SQL)
 langchain-core>=1.7
@@ -29,4 +21,3 @@ matplotlib>=3.8   # gráficas de docs/ (src/reportes)
 pytest>=8.3
 flake8>=7.1
 black>=24.8
-python-dotenv>=1.0

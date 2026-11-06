@@ -1,6 +1,6 @@
 """
 Reporte para la revisión de distribuciones y casos representativos
-(pedido de Eduardo, BBVA, antes de cerrar la parte de KPIs y modelo).
+(pedido de BBVA antes de cerrar la parte de KPIs y modelo).
 
 Genera las gráficas de docs/fase5_revision_distribuciones.md a partir de
 la capa Gold, el Silver de préstamos y las métricas del modelo, e imprime
