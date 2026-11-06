@@ -89,7 +89,8 @@ Luego, en Airflow, activa y corre el DAG `bronze_ingest`. Servicios disponibles:
 - Dashboard Ejecutivo: http://localhost:8502
 - MinIO Console: http://localhost:9001 (almacenamiento tipo S3; queda listo para una futura
   migración a la nube, por ahora los datos se guardan en Parquet en `./data`)
-- PostgreSQL: `localhost:5432` (metadata de Airflow + base analítica)
+- PostgreSQL: `localhost:5432` (metadata de Airflow; la base `gemelo_gold` queda creada para
+  cargar Gold más adelante, por ahora Gold se guarda en Parquet)
 
 Si cambias el código de un dashboard, reconstrúyelo con
 `docker compose up -d --build dashboard dashboard-ejecutivo`.

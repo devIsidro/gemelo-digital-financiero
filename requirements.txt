@@ -3,9 +3,11 @@
 
 # Procesamiento de datos
 pandas>=2.2
-pyspark>=3.5
-duckdb>=1.0
+pyarrow>=15.0       # leer y escribir Parquet
+pyspark==4.2.0      # misma versión que el Dockerfile y la CI
+duckdb==2.0.0
 psycopg2-binary>=2.9
+tzdata              # zona horaria America/Mexico_City en Windows
 
 # IA Generativa / RAG (asistente: Llama 3 en Ollama + LangChain + Text-to-SQL)
 langchain-core>=1.7
