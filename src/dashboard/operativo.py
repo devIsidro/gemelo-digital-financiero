@@ -115,6 +115,11 @@ def cargar_catalogo():
     return catalogo_datos.resumen(RUTAS)
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def cargar_columnas_catalogo(i: int):
+    return catalogo_datos.columnas(catalogo_datos.CATALOGO[i], RUTAS)
+
+
 @st.cache_data(ttl=30, show_spinner=False)
 def estado_ollama():
     from src.ia import asistente as ia
@@ -796,6 +801,23 @@ st.write("")
 # Catálogo de datos
 # ---------------------------------------------------------------------------
 
+
+@st.fragment
+def columnas_catalogo():
+    """Al cambiar de tabla solo se vuelve a dibujar esta parte, no todo el panel."""
+    nombres = [f"{t.capa} · {t.nombre}" for t in catalogo_datos.CATALOGO]
+    elegida = st.selectbox("Ver las columnas de", nombres, key="tabla_catalogo")
+    i = nombres.index(elegida)
+    tabla_cat = catalogo_datos.CATALOGO[i]
+    html(
+        f'<p class="gd-nota"><b>Origen:</b> {tabla_cat.origen} · <b>Llave:</b> '
+        f"{tabla_cat.llave} · <b>Paso del DAG:</b> {tabla_cat.paso}</p>"
+    )
+    dicc = cargar_columnas_catalogo(i).copy()
+    dicc.columns = ["Columna", "Descripción", "Dato personal"]
+    st.dataframe(dicc, hide_index=True, width="stretch")
+
+
 with st.container(key="caja_catalogo"):
     html(
         e.titulo_caja(
@@ -822,7 +844,10 @@ with st.container(key="caja_catalogo"):
             ),
         }
     )
-    st.dataframe(vista, hide_index=True, width="stretch")
+    # Altura justa para ver todas las tablas sin scroll.
+    st.dataframe(
+        vista, hide_index=True, width="stretch", height=35 * (len(vista) + 1) + 3
+    )
     sin_doc = catalogo[catalogo["sin_documentar"].map(len) > 0]
     for _, f in sin_doc.iterrows():
         html(
@@ -841,16 +866,7 @@ with st.container(key="caja_catalogo"):
                 info=True,
             )
         )
-    nombres = [f"{t.capa} · {t.nombre}" for t in catalogo_datos.CATALOGO]
-    elegida = st.selectbox("Ver las columnas de", nombres, key="tabla_catalogo")
-    tabla_cat = catalogo_datos.CATALOGO[nombres.index(elegida)]
-    html(
-        f'<p class="gd-nota"><b>Origen:</b> {tabla_cat.origen} · <b>Llave:</b> '
-        f"{tabla_cat.llave} · <b>Paso del DAG:</b> {tabla_cat.paso}</p>"
-    )
-    dicc = catalogo_datos.columnas(tabla_cat, RUTAS)
-    dicc.columns = ["Columna", "Descripción", "Dato personal"]
-    st.dataframe(dicc, hide_index=True, width="stretch")
+    columnas_catalogo()
 
 html(
     '<p class="gd-pie">Fuentes: Credit Card Transactions Fraud Detection y Loan Default '

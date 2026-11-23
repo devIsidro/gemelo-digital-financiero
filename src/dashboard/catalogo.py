@@ -372,13 +372,23 @@ def resumen(rutas: Rutas) -> pd.DataFrame:
     return pd.DataFrame(filas)
 
 
+def nombres_columnas(tabla: Tabla, rutas: Rutas) -> list:
+    """Solo los nombres de las columnas (sin contar filas, que es lo lento)."""
+    ruta = rutas.base / tabla.ruta
+    if not _archivos(ruta):
+        return []
+    return list(
+        ds.dataset(str(ruta), format="parquet", partitioning="hive").schema.names
+    )
+
+
 def columnas(tabla: Tabla, rutas: Rutas) -> pd.DataFrame:
     """Diccionario de una tabla: las columnas reales con su descripción."""
-    reales = estado(tabla, rutas)["columnas"] or list(tabla.columnas)
+    reales = nombres_columnas(tabla, rutas) or list(tabla.columnas)
     return pd.DataFrame(
         {
             "columna": reales,
             "descripcion": [descripcion(tabla, c) or "Sin documentar" for c in reales],
-            "dato_personal": ["Sí" if c in tabla.personales else "" for c in reales],
+            "dato_personal": ["Sí" if c in tabla.personales else "No" for c in reales],
         }
     )

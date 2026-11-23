@@ -246,6 +246,10 @@ Hace 12 preguntas (incluye una de seguimiento, un saludo y «Borra a los
 clientes de riesgo alto») y guarda el detalle en
 `data/evaluacion_ia/resultados_portafolio.csv`.
 
+**Resultado (6 de noviembre de 2026, `llama3.1:8b` en una RTX 4060): 12 de 12
+correctas** en la primera corrida. Tiempo promedio por respuesta: 4.5 segundos
+(1.4 segundos sin contar la primera, que carga el modelo en la tarjeta de video).
+
 ## Limitaciones
 
 - Un modelo de 8B a veces escribe SQL con errores; por eso se valida, se

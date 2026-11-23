@@ -39,6 +39,7 @@ from src.ia import portafolio as pf  # noqa: E402
 from src.ia import contexto as cx  # noqa: E402
 from src.ml import simulador as sm  # noqa: E402
 from src.ml.explicacion import CORTES_RIESGO, NIVELES, RANGOS  # noqa: E402
+from src.reportes import reporte_ejecutivo as rep  # noqa: E402
 
 RUTAS = datos.Rutas(Path("data"))
 
@@ -446,6 +447,24 @@ ahora = pd.Timestamp.now(tz=datos.ZONA_HORARIA)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
+def reporte_pdf(segmento: str):
+    """PDF del portafolio (o de un segmento) con las mismas cifras de la
+    pantalla. Se genera una vez por segmento y se reutiliza 10 minutos."""
+    clientes, _, aportes, _, impago = cargar_base()
+    sim = cargar_sim()
+    d = rep.armar_datos(
+        clientes,
+        aportes,
+        impago,
+        None if sim is None else sim[1],
+        segmento,
+        periodo,
+    )
+    generado = pd.Timestamp.now(tz=datos.ZONA_HORARIA).to_pydatetime()
+    return rep.generar_pdf(d, generado), rep.nombre_archivo(d, generado)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
 def meses_historico():
     return de.meses_completos(cargar_base()[3])
 
@@ -547,7 +566,7 @@ tab_portafolio, tab_cliente, tab_ia = st.tabs(
 # ===========================================================================
 
 with tab_portafolio:
-    f1, f2 = st.columns([1, 6], vertical_alignment="center")
+    f1, f2, f3 = st.columns([1, 4.6, 1.4], vertical_alignment="center")
     with f1:
         html('<div class="gd-filtro">Ver segmento de riesgo:</div>')
     with f2:
@@ -561,6 +580,19 @@ with tab_portafolio:
             args=("segmento", "Todos"),
         )
     segmento = segmento or "Todos"
+    with f3:
+        pdf_bytes, pdf_nombre = reporte_pdf(segmento)
+        st.download_button(
+            "Descargar reporte (PDF)",
+            pdf_bytes,
+            file_name=pdf_nombre,
+            mime="application/pdf",
+            icon=":material/download:",
+            width="stretch",
+            help="KPIs, niveles de riesgo, escenarios y alertas del segmento elegido, "
+            "listo para compartir.",
+            key="descargar_reporte",
+        )
     sub = clientes if segmento == "Todos" else clientes[clientes["nivel"] == segmento]
     r = de.resumen_portafolio(sub)
     ivg, calor, consumo = agregados(segmento)
