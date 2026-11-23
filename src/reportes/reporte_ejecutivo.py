@@ -440,6 +440,10 @@ def _notas(pdf: FPDF):
         "documentadas; los clientes se muestran con un identificador anónimo.",
         "Los datos pasan por las capas Bronze, Silver y Gold y por reglas de calidad en "
         "cada corrida del pipeline. Los montos están en USD.",
+        "El DTI y la probabilidad de impago usan el ingreso de la fuente de "
+        "préstamos; la capacidad de ahorro usa el ingreso simulado. Por eso un "
+        "cliente puede tener un DTI alto y, al mismo tiempo, buena capacidad de "
+        "ahorro.",
         "La probabilidad de impago sale de un modelo de regresión logística explicable; "
         f"los cortes de riesgo ({CORTES_RIESGO[0]:.0%} y {CORTES_RIESGO[1]:.0%}) se "
         "validaron con BBVA.",
