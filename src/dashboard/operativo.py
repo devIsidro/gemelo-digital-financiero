@@ -21,6 +21,7 @@ Corre con: streamlit run src/dashboard/operativo.py
 
 import os
 import sys
+from html import escape
 from pathlib import Path
 
 import altair as alt
@@ -30,6 +31,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.dashboard import catalogo as catalogo_datos  # noqa: E402
+from src.dashboard import linaje  # noqa: E402
 from src.dashboard import datos  # noqa: E402
 from src.dashboard import estilo as e  # noqa: E402
 from src.observabilidad import alertas as al  # noqa: E402
@@ -867,6 +869,58 @@ with st.container(key="caja_catalogo"):
             )
         )
     columnas_catalogo()
+
+st.write("")
+
+# ---------------------------------------------------------------------------
+# Linaje de datos
+# ---------------------------------------------------------------------------
+
+
+@st.fragment
+def vista_linaje():
+    """Al cambiar de indicador solo se vuelve a dibujar esta parte."""
+    nombres = [i.nombre for i in linaje.INDICADORES]
+    elegido = st.segmented_control(
+        "Indicador",
+        nombres,
+        default=nombres[3],
+        key="indicador_linaje",
+        label_visibility="collapsed",
+    )
+    ind = linaje.indicador(elegido or nombres[3])
+    estado = linaje.estado_desde_catalogo(cargar_catalogo())
+    destino = linaje.NODOS[ind.tabla]
+    html(
+        f'<p class="gd-nota"><b>Dónde vive:</b> Gold · {destino.nombre}, columna '
+        f"<code>{ind.columna}</code> · <b>Cómo se calcula:</b> {ind.formula}</p>"
+    )
+    st.graphviz_chart(linaje.grafo(ind, estado), width="stretch")
+    pasos = linaje.tabla_pasos(ind, estado)
+    filas = "".join(
+        f'<tr><td class="num">{n}</td><td>{escape(p["De"])} → <b>{escape(p["A"])}</b></td>'
+        f"<td><code>{escape(p['Paso del DAG'])}</code></td><td>{escape(p['Qué pasa'])}</td>"
+        f'<td><small>{escape(p["Código"])}</small></td></tr>'
+        for n, p in enumerate(pasos.to_dict("records"), start=1)
+    )
+    html(
+        '<table class="gd-tabla"><thead><tr><th class="num">#</th><th>De → a</th>'
+        "<th>Paso del DAG</th><th>Qué pasa</th><th>Código</th></tr></thead>"
+        f"<tbody>{filas}</tbody></table>"
+    )
+
+
+with st.container(key="caja_linaje"):
+    html(
+        e.titulo_caja(
+            "Linaje de datos",
+            "De dónde sale cada indicador que ve el negocio: del archivo original a "
+            "Bronze, Silver y Gold, con el paso del DAG y el código de cada "
+            "transformación. Cualquier número se puede seguir hasta su origen.",
+            "flujo",
+        )
+    )
+    vista_linaje()
 
 html(
     '<p class="gd-pie">Fuentes: Credit Card Transactions Fraud Detection y Loan Default '

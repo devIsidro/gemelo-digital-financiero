@@ -124,6 +124,29 @@ El proyecto empezó con un problema de adopción del catálogo corporativo: la
 gente usaba fuentes no oficiales porque no encontraba ni entendía los datos.
 Este catálogo es la respuesta del proyecto a ese problema.
 
+### 7. Linaje de datos (agregado después del cierre)
+
+Debajo del catálogo, el Panel Operativo muestra el linaje de los cinco
+indicadores que ve el negocio: gasto mensual, capacidad de ahorro,
+endeudamiento (DTI), probabilidad de impago y riesgo de números rojos del
+simulador (`src/dashboard/linaje.py`). Para el indicador elegido:
+
+- un diagrama del camino completo, del CSV de Kaggle a Bronze, Silver y Gold
+  hasta el dashboard, con el paso del DAG en cada flecha y las filas de cada
+  tabla (leídas del catálogo, así que siempre están al día);
+- la tabla Gold y la columna donde vive, con su fórmula;
+- una tabla con cada transformación en el orden en que ocurre: qué pasa, qué
+  paso del DAG la hace y en qué archivo está el código.
+
+Sirve para auditar cualquier número: si alguien pregunta de dónde salió, se
+sigue hasta el dato original.
+
+El mapa se escribe a mano (no se infiere del código), así que las pruebas de
+`tests/dashboard/test_linaje.py` lo cuidan: cada tabla tiene que existir en el
+catálogo, cada paso tiene que ser una tarea real del DAG, cada archivo de
+código tiene que existir, cada columna tiene que estar documentada en su tabla
+y cada indicador tiene que poder seguirse desde un CSV hasta el dashboard.
+
 ## Revisar desde la terminal
 
 ```

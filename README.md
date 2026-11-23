@@ -56,7 +56,7 @@ Las transformaciones corren con PySpark 4.2 dentro del contenedor de Airflow
 | Dirección | http://localhost:8501 | http://localhost:8502 |
 | Para | Equipo de Data Engineering | Negocio: dirección, riesgos, producto |
 | Responde | ¿La plataforma funciona bien? | ¿Cómo están los clientes? |
-| Muestra | SLA, alertas recientes, estado de los 12 pasos, historial de corridas de Airflow, tasa de éxito, duración por paso, reglas de calidad, consistencia entre capas, estado del asistente de IA, catálogo de datos | Portafolio por nivel de riesgo, ingresos vs gastos, mapa de calor de compras, consumo esencial vs discrecional, alertas tempranas, escenarios a futuro, perfil 360 de cada cliente con simulador Monte Carlo, asistente de IA y reporte ejecutivo en PDF descargable |
+| Muestra | SLA, alertas recientes, estado de los 12 pasos, historial de corridas de Airflow, tasa de éxito, duración por paso, reglas de calidad, consistencia entre capas, estado del asistente de IA, catálogo de datos y linaje de cada indicador | Portafolio por nivel de riesgo, ingresos vs gastos, mapa de calor de compras, consumo esencial vs discrecional, alertas tempranas, escenarios a futuro, perfil 360 de cada cliente con simulador Monte Carlo, asistente de IA y reporte ejecutivo en PDF descargable |
 | Código | `src/dashboard/operativo.py` | `src/dashboard/ejecutivo.py` |
 
 Ambos usan la Guía de Estilo de BBVA (`src/dashboard/estilo.py`) y leen la capa Gold de `./data`,
