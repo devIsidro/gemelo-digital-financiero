@@ -292,7 +292,9 @@ def nodos_de(ind: Indicador) -> list:
 
 def _etiqueta(nodo_id: str, estado: dict) -> str:
     n = NODOS[nodo_id]
-    nombre = n.nombre.replace(", reporte", ",\\nreporte")
+    nombre = n.nombre.replace(", reporte", ",\\nreporte").replace(
+        " y asistente", "\\ny asistente"
+    )
     texto = f"{n.capa}\\n{nombre}"
     filas = (estado or {}).get(nodo_id)
     if filas is not None:
@@ -307,7 +309,7 @@ def grafo(ind: Indicador, estado: dict = None) -> str:
     """
     lineas = [
         "digraph linaje {",
-        '  rankdir=LR; bgcolor="transparent"; nodesep=0.3; ranksep=0.45;',
+        '  rankdir=LR; bgcolor="transparent"; nodesep=0.25; ranksep=0.3;',
         '  node [shape=box, style="rounded,filled", fontname="Helvetica", '
         'fontsize=13, color="#C9CED6", fontcolor="#060E46", margin="0.15,0.08"];',
         '  edge [color="#001391", arrowsize=0.7, fontname="Helvetica", fontsize=10, '
@@ -318,7 +320,6 @@ def grafo(ind: Indicador, estado: dict = None) -> str:
         ids = [i for i in nodos if NODOS[i].capa == capa]
         if not ids:
             continue
-        lineas.append("  { rank=same; " + " ".join(f'"{i}";' for i in ids) + " }")
         for i in ids:
             extra = ""
             if i == ind.tabla:
