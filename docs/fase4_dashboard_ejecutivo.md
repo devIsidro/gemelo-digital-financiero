@@ -75,6 +75,36 @@ portafolio). Filtro por segmento de riesgo (todos, bajo, medio, alto):
 
 Detalle en `docs/fase5_simulador_monte_carlo.md`.
 
+## Reporte ejecutivo en PDF (agregado después del cierre)
+
+Botón «Descargar reporte (PDF)» arriba a la derecha de la pestaña Portafolio.
+Genera un reporte de dos páginas del segmento elegido (todos, bajo, medio o
+alto), pensado para compartirlo con un comité sin abrir el dashboard:
+
+- Página 1: KPIs del segmento, hallazgos clave, niveles de riesgo del
+  portafolio con el impago real de préstamos parecidos y el impacto de cada
+  escenario del simulador.
+- Página 2: alertas tempranas (los 15 clientes con mayor probabilidad de
+  impago y lo que más sube su riesgo) y cómo leer el reporte.
+
+Decisiones:
+
+- **Mismas cifras que la pantalla:** el PDF usa las funciones de
+  `datos_ejecutivo.py` (`resumen_portafolio`, `tabla_niveles`, `alertas` y
+  `escenarios_portafolio`), no hace cálculos propios.
+- **Hallazgos calculados, no escritos a mano:** las frases se arman con los
+  datos de cada corrida (`hallazgos()` en `src/reportes/reporte_ejecutivo.py`).
+- **fpdf2:** genera el PDF dibujando texto y rectángulos, sin navegador ni
+  librerías del sistema, así que cabe en la imagen liviana del dashboard.
+  Usa las fuentes estándar del PDF, por eso los símbolos fuera de Latin-1
+  (≥, −, →) se cambian por su equivalente (>=, -, ->).
+- **Mismo cuidado con los datos personales:** solo aparecen los
+  identificadores anónimos («Cliente 0001»), nunca el número de tarjeta.
+
+Pruebas en `tests/reportes/test_reporte_ejecutivo.py`. Después de actualizar
+el código hay que reconstruir la imagen:
+`docker compose up -d --build dashboard dashboard-ejecutivo`.
+
 ## Asistente de IA (agregado en la Fase 5)
 
 Pestaña «Asistente IA»: chat sobre un cliente en lenguaje natural, con Llama 3

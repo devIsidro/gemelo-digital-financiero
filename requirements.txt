@@ -16,6 +16,7 @@ langchain-ollama>=1.1
 # Dashboards
 streamlit>=1.38
 matplotlib>=3.8   # gráficas de docs/ (src/reportes)
+fpdf2==2.9.0      # reporte ejecutivo en PDF (src/reportes/reporte_ejecutivo.py)
 
 # Testing y calidad de código
 pytest>=8.3
