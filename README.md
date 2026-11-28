@@ -1,9 +1,11 @@
-# Gemelo Digital Financiero — BBVA · Tecmilenio
+# FinVision — Gemelo Digital Financiero
 
-Plataforma de Ingeniería de Datos (arquitectura Lakehouse Bronze-Silver-Gold) que sirve de motor
-fundacional para construir un "Gemelo Digital Financiero": un sistema capaz de analizar el
-comportamiento financiero de un usuario, evaluar su perfil de riesgo, simular escenarios futuros
-y responder preguntas en lenguaje natural mediante IA generativa.
+*Entender el presente. Simular el futuro.* · BBVA · Tecmilenio
+
+FinVision es una plataforma de Ingeniería de Datos (arquitectura Lakehouse Bronze-Silver-Gold)
+que sirve de motor fundacional para construir un "Gemelo Digital Financiero": un sistema capaz de
+analizar el comportamiento financiero de un usuario, evaluar su perfil de riesgo, simular
+escenarios futuros y responder preguntas en lenguaje natural mediante IA generativa.
 
 Proyecto individual — Path de Data Engineering, Tecmilenio en colaboración con BBVA.
 Uso académico con datos públicos de Kaggle; ningún dato pertenece a una persona real.
@@ -72,6 +74,8 @@ respuesta con esos datos. Las preguntas de «¿qué pasaría si...?» usan el si
 Código en `src/ia/`; detalle en `docs/fase5_asistente_ia.md`. Para medirlo con el modelo real:
 `docker compose exec dashboard-ejecutivo python -m src.ia.evaluar` (75 de 75 respuestas correctas en
 la última evaluación, con 5 clientes); las preguntas del portafolio se evalúan con `--portafolio`: 12 de 12.
+Para pruebas a gran escala (miles de preguntas al azar sobre clientes y portafolio) está
+`python -m src.ia.evaluacion_masiva --n 10000`.
 
 ## Cómo levantar el entorno local
 
@@ -155,7 +159,7 @@ sube a `develop`. Después, GitHub corre el lint y las pruebas.
 │   ├── dashboard/         # Panel Operativo y Dashboard Ejecutivo (Streamlit)
 │   └── reportes/          # Reporte ejecutivo en PDF y gráficas de los documentos de revisión
 ├── config/                # Catálogo de KPIs y scripts de base de datos
-├── docs/                  # Decisiones, diseño y revisiones de cada fase
+├── docs/                  # Decisiones, diseño y revisiones de cada fase (entregables/: plan y reporte final)
 ├── tests/                 # Pruebas unitarias (pytest)
 ├── Dockerfile             # Imagen de Airflow con PySpark
 ├── Dockerfile.dashboard   # Imagen de los dashboards
@@ -173,7 +177,7 @@ sube a `develop`. Después, GitHub corre el lint y las pruebas.
 | 4. Capa Gold, KPIs y dashboard ejecutivo | Completa (v1) | `docs/fase4_diseno_capa_gold.md`, `docs/fase4_datos_simulados_ingreso_credito.md`, `docs/fase4_llave_sintetica_prestamos.md`, `docs/fase4_decisiones_kpis.md`, `docs/fase4_dashboard_ejecutivo.md` |
 | 5. IA y simulación | Lista: modelo de impago, simulador Monte Carlo y asistente de IA (75 de 75 en la evaluación con el modelo real) | `docs/fase5_modelo_impago.md`, `docs/fase5_revision_distribuciones.md`, `docs/fase5_simulador_monte_carlo.md`, `docs/fase5_asistente_ia.md` |
 | 6. Observabilidad y hardening | Lista: 6 SLA, alertas en el panel y por correo, consistencia Bronze → Silver → Gold, healthchecks | `docs/fase6_observabilidad.md` |
-| 7. Cierre ejecutivo | En curso: desarrollo cerrado con visto bueno de BBVA; presentación final el 30 de noviembre de 2026 en Torre BBVA | `docs/entregables/reporte_cierre_gemelo_digital_financiero.docx` |
+| 7. Cierre ejecutivo | Desarrollo cerrado con visto bueno de BBVA; presentación final el 30 de noviembre de 2026 en Torre BBVA | `docs/entregables/reporte_final_finvision.pdf` |
 
 Decisiones clave tomadas con BBVA (detalle en `docs/`):
 
