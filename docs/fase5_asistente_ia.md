@@ -250,6 +250,35 @@ clientes de riesgo alto») y guarda el detalle en
 correctas** en la primera corrida. Tiempo promedio por respuesta: 4.5 segundos
 (1.4 segundos sin contar la primera, que carga el modelo en la tarjeta de video).
 
+## Evaluación masiva (miles de preguntas al azar)
+
+Las evaluaciones anteriores usan 87 preguntas fijas. `src/ia/evaluacion_masiva.py`
+genera las que se le pidan (por ejemplo 10,000) a partir de 25 plantillas: 15
+sobre un cliente elegido al azar (riesgo, gasto o ahorro de un mes, ingreso,
+score, categorías, subir o bajar el gasto, metas, escenarios, seguimiento,
+fuera de tema…) y 10 sobre todo el portafolio. Cada plantilla tiene varias
+redacciones y una de cada cuatro preguntas llega como la escribiría alguien con
+prisa: en minúsculas y sin acentos.
+
+- **Respuesta correcta calculada aparte** con Gold y calificación automática
+  con las mismas revisiones de `evaluar.py` (tipo de pregunta, cifras clave,
+  cifras inventadas, muletillas y largo).
+- **Reproducible:** las preguntas salen de una semilla (2026 por defecto).
+- **Se puede retomar:** cada respuesta se guarda al terminar; si la corrida se
+  corta, el mismo comando sigue donde se quedó.
+- **No entrena al modelo:** mide qué tan seguido acierta y en qué tipo de
+  pregunta falla, para corregir el código del asistente.
+
+```
+docker compose exec dashboard-ejecutivo python -m src.ia.evaluacion_masiva --n 500
+docker compose exec dashboard-ejecutivo python -m src.ia.evaluacion_masiva --n 10000
+```
+
+Resultados en `data/evaluacion_ia/masiva/`: una fila por pregunta, el
+porcentaje de aciertos por plantilla y un resumen en JSON (aciertos por
+clientes y portafolio, tiempo promedio y percentil 95, problemas más comunes).
+Pruebas en `tests/ia/test_evaluacion_masiva.py`.
+
 ## Limitaciones
 
 - Un modelo de 8B a veces escribe SQL con errores; por eso se valida, se

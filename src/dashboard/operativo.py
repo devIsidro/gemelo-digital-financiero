@@ -1,5 +1,5 @@
 """
-Panel Operativo del Gemelo Digital Financiero (Fase 3, rediseñado en Fase 4
+Panel Operativo de FinVision, el Gemelo Digital Financiero (Fase 3, rediseñado en Fase 4
 con la Guía de Estilo de BBVA).
 
 Vista para el equipo de Data Engineering: muestra la salud del pipeline
@@ -42,7 +42,7 @@ RUTAS = datos.Rutas(Path("data"))
 RUTA_EVALUACION_IA = Path("data/evaluacion_ia/resultados.csv")
 
 st.set_page_config(
-    page_title="Panel Operativo — Gemelo Digital Financiero",
+    page_title="FinVision · Panel Operativo",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -241,8 +241,8 @@ ahora = pd.Timestamp.now(tz=datos.ZONA_HORARIA)
 izq, der = st.columns([3, 2], vertical_alignment="bottom")
 with izq:
     html(
-        '<div class="gd-eyebrow">Panel operativo · Data Engineering</div>'
-        '<div class="gd-h1">Gemelo Digital Financiero</div>'
+        '<div class="gd-eyebrow">Gemelo Digital Financiero · Panel operativo</div>'
+        '<div class="gd-h1">FinVision</div>'
         '<p class="gd-sub">Salud del pipeline de datos: de los datos crudos a los '
         "KPIs financieros y el modelo de riesgo.</p>"
     )

@@ -182,7 +182,7 @@ class _Pdf(FPDF):
             0,
             7,
             latin(
-                "Gemelo Digital Financiero · Uso académico con datos simulados: son "
+                "FinVision · Uso académico con datos simulados: son "
                 "estimaciones, no asesoría financiera"
             ),
         )
@@ -210,10 +210,16 @@ def _encabezado(pdf: FPDF, d: DatosReporte, generado: datetime):
     pdf.set_xy(pdf.l_margin, 8)
     pdf.set_font("helvetica", "B", 8)
     pdf.set_text_color(*SERENE)
-    pdf.cell(0, 4, "REPORTE EJECUTIVO DEL PORTAFOLIO", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(
+        0,
+        4,
+        latin("REPORTE EJECUTIVO DEL PORTAFOLIO · GEMELO DIGITAL FINANCIERO"),
+        new_x="LMARGIN",
+        new_y="NEXT",
+    )
     pdf.set_font("helvetica", "B", 19)
     pdf.set_text_color(*BLANCO)
-    pdf.cell(0, 10, "Gemelo Digital Financiero", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 10, "FinVision", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("helvetica", "", 9)
     pdf.cell(
         0,
@@ -460,7 +466,7 @@ def generar_pdf(d: DatosReporte, generado: datetime = None) -> bytes:
     pdf.set_margins(14, 14, 14)
     pdf.set_auto_page_break(True, margin=16)
     pdf.set_title(latin(f"Reporte ejecutivo - {d.titulo_segmento}"))
-    pdf.set_author("Gemelo Digital Financiero")
+    pdf.set_author("FinVision · Gemelo Digital Financiero")
     pdf.add_page()
     _encabezado(pdf, d, generado)
     _kpis(pdf, d.resumen)

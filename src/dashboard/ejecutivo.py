@@ -1,5 +1,5 @@
 """
-Dashboard Ejecutivo del Gemelo Digital Financiero — v1 (Fase 4).
+Dashboard Ejecutivo de FinVision, el Gemelo Digital Financiero (Fase 4).
 
 Para tomadores de decisiones de negocio (sección 12 del documento del
 proyecto). Lee solo de la capa Gold (y de Silver para el histórico):
@@ -44,7 +44,7 @@ from src.reportes import reporte_ejecutivo as rep  # noqa: E402
 RUTAS = datos.Rutas(Path("data"))
 
 st.set_page_config(
-    page_title="Dashboard Ejecutivo — Gemelo Digital Financiero",
+    page_title="FinVision · Dashboard Ejecutivo",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -543,8 +543,8 @@ def detalle_ia(prep, portafolio: bool = False):
 izq, der = st.columns([3, 2], vertical_alignment="bottom")
 with izq:
     html(
-        '<div class="gd-eyebrow">Dashboard ejecutivo · Negocio</div>'
-        '<div class="gd-h1">Gemelo Digital Financiero</div>'
+        '<div class="gd-eyebrow">Gemelo Digital Financiero · Dashboard ejecutivo</div>'
+        '<div class="gd-h1">FinVision</div>'
         '<p class="gd-sub">Salud financiera del portafolio de clientes y de cada '
         "cliente, a partir de la capa Gold.</p>"
     )
